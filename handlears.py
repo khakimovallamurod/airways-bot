@@ -145,3 +145,9 @@ async def select_class(update: Update, context: CallbackContext):
     print(date)
     print(context.user_data['from_city'])
     print(context.user_data['to_city'])
+
+
+
+async def cancel(update: Update, context: CallbackContext):
+    await update.message.reply_text('Amalyot bajarilmadi!')
+    return ConversationHandler.END

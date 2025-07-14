@@ -15,15 +15,14 @@ def main():
     dp.add_handler(CommandHandler('start', handlears.start))
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("railwaycount", handlears.railway_start)],
+        entry_points=[CommandHandler("airwaystart", handlears.railway_start)],
         states={
             handlears.FROM_CITY: [CallbackQueryHandler(handlears.from_city_selected)],
             handlears.TO_CITY: [CallbackQueryHandler(handlears.to_city_selected)],
             handlears.DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.select_class)],
-            handlears.SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.railway_count)],
         },
-        fallbacks=False,
-        allow_reentry=True
+        fallbacks=[CommandHandler("cancel", handlears.cancel)],
+        per_message=False
     )
 
     admin_handler = ConversationHandler(
@@ -31,7 +30,8 @@ def main():
         states={
             handlears.ID_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.insert_admin)]
         },
-        fallbacks=False,
+        fallbacks=[CommandHandler("cancel", handlears.cancel)],
+        per_message=False
     )
 
     dp.add_handler(conv_handler)
