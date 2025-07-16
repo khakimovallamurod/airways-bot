@@ -50,7 +50,7 @@ def main():
 
     asyncio.get_event_loop().run_until_complete(start_jobs(dp))
 
-    dp.run_polling(allowed_updates=Update.ALL_TYPES, timeout=30)
+    dp.run_polling(allowed_updates=Update.ALL_TYPES, timeout=3000)
 
 if __name__ == '__main__':
     main()

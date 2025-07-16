@@ -149,6 +149,7 @@ async def select_class(update: Update, context: CallbackContext):
         date=context.user_data['date'],
         )
     class_names = await parser.find_missing_classes()
+    print(class_names)
     if class_names:
         await update.message.reply_text("Class turini tanlang:", reply_markup=keyboards.select_class_button(class_names))
         return SELECT
@@ -180,7 +181,7 @@ async def add_comment_signal(update: Update, context: CallbackContext):
     job_name = f"signal_{chat_id}_{class_name}_{date}"
     
     job_queue.run_repeating(
-        send_signal_job, interval=1*60, first=0, name=job_name,
+        send_signal_job, interval=2*60, first=0, name=job_name,
         data={
             "chat_id": chat_id,
             "from_city": context.user_data['from_city'],
@@ -315,7 +316,7 @@ async def view_actives(update: Update, context: CallbackContext):
 
     if airwaydb.check_admin(chat_id):
         actives_data = airwaydb.get_actives()
-
+        print(actives_data)
         if not actives_data:
             await update.message.reply_text("❌ Hech qanday aktiv signal topilmadi.")
             return
