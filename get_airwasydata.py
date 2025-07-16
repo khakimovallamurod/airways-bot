@@ -32,7 +32,7 @@ class FlightParser:
             return False
                 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
+            browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
             await page.goto(base_url, wait_until="networkidle")
             redirect_url = page.url.split('?')[0].split('/')[-1]

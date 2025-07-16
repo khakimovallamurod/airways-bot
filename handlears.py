@@ -241,8 +241,10 @@ async def send_signal_job(context: CallbackContext):
             f"🛬 Qo‘nish vaqti: {data['arrival_time']}\n"
             f"🛩️ Samolyot: {data['airplane']}\n"
             f"💺 Tariff: {data['tariff_type']} ({data['tariff_class']})\n"
+            f"📦 Joylar soni: {data.get('available_seats', 'Nomaʼlum')}\n"
             f"💰 Narx: {data['price']} {data['currency']}"
         )
+
 
         reply_markup = keyboards.signal_keyboard(class_name, date=date, route_key=route_key)
         await context.bot.send_message(
