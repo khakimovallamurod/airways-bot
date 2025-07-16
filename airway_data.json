@@ -1,0 +1,17 @@
+{
+    "AirwayDB": {
+        "672054556756224063210522656470417403612011": {
+            "chat_id": 1383186462,
+            "date": "2026-01-12",
+            "comment": "test001",
+            "class_name": "R",
+            "active": true,
+            "route": [
+                "Toshkent",
+                "Samarqand"
+            ],
+            "stationFromCode": "TAS",
+            "stationToCode": "SKD"
+        }
+    }
+}

@@ -7,13 +7,14 @@ import time
 import get_airwasydata
 
 USER_IDS = ['6889331565', '608913545', '1383186462']
-airwaydb = db.AirwayDB()
 
 FROM_CITY, TO_CITY, DATE, SELECT, ADD_COMMENT = range(5)
 ID_START = range(1)
 
 async def start(update: Update, context: CallbackContext):
     user = update.message.from_user
+    airwaydb = db.AirwayDB()
+
     chat_id = user.id
     if airwaydb.check_admin(chat_id):
         await update.message.reply_text(
@@ -29,6 +30,8 @@ async def admin_start(update: Update, context: CallbackContext):
     return ID_START
 
 async def insert_admin(update: Update, context: CallbackContext):
+    airwaydb = db.AirwayDB()
+
     id_text = update.message.text
     chat_id = str(update.message.from_user.id)
     if chat_id in USER_IDS :
@@ -43,6 +46,7 @@ async def insert_admin(update: Update, context: CallbackContext):
     return ConversationHandler.END
 
 async def railway_start(update: Update, context: CallbackContext):
+    airwaydb = db.AirwayDB()
     chat_id = update.message.from_user.id
 
     if airwaydb.check_admin(chat_id):
@@ -138,6 +142,7 @@ async def to_city_selected(update: Update, context: CallbackContext):
 async def select_class(update: Update, context: CallbackContext):
     context.user_data['date'] = update.message.text.strip()
     date = context.user_data['date']
+    airwaydb = db.AirwayDB()
 
     if not airwaydb.is_valid_date(date):
         await update.message.reply_text("Sanani noto'g'ri formatda kiritdingiz, iltimos qayta urinib ko'ring (Year-Month-Day)!")
@@ -149,7 +154,6 @@ async def select_class(update: Update, context: CallbackContext):
         date=context.user_data['date'],
         )
     class_names = await parser.find_missing_classes()
-    print(class_names)
     if class_names:
         await update.message.reply_text("Class turini tanlang:", reply_markup=keyboards.select_class_button(class_names))
         return SELECT
@@ -313,10 +317,9 @@ async def stop_signal(update: Update, context: CallbackContext):
 async def view_actives(update: Update, context: CallbackContext):
     """📋 Faol aviaparvoz signallarini ko‘rsatish"""
     chat_id = update.message.chat.id
-
-    if airwaydb.check_admin(chat_id):
-        actives_data = airwaydb.get_actives()
-        print(actives_data)
+    airwayobj = db.AirwayDB()
+    if airwayobj.check_admin(chat_id):
+        actives_data = airwayobj.get_actives()
         if not actives_data:
             await update.message.reply_text("❌ Hech qanday aktiv signal topilmadi.")
             return
@@ -359,6 +362,7 @@ async def view_actives(update: Update, context: CallbackContext):
 
 
 async def restart_active_signals(application):
+    airwaydb = db.AirwayDB()
     """Bot qayta ishga tushganda eski signallarni qayta tiklash"""
     actives_data = airwaydb.get_actives()
 
@@ -378,7 +382,7 @@ async def restart_active_signals(application):
         job_name = f"signal_{chat_id}_{class_name}_{date}"
 
         job_queue.run_repeating(
-            send_signal_job, interval=60, first=0, name=job_name,
+            send_signal_job, interval=2*60, first=0, name=job_name,
             data={
                 "chat_id": chat_id,
                 "from_city": from_city,
