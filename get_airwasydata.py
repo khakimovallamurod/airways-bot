@@ -1,0 +1,190 @@
+from bs4 import BeautifulSoup
+import re
+import json
+import config
+import os
+from playwright.async_api import async_playwright
+from datetime import datetime
+import hashlib
+
+class FlightParser:
+    all_possible_classes = {'R', 'P', 'L', 'U', 'S', 'O', 'V', 'T', 'K', 'M', 'B', 'Y', 'I', 'D', 'C'}
+
+    def __init__(self, from_city, to_city, date):
+        self.file_path = None
+        self.html_content = ""
+        self.soup = None
+        self.flight_info = {}
+        self.url = config.get_url()
+        self.from_city = from_city
+        self.to_city = to_city
+        self.date = date
+        self.class_name = None
+
+    async def load_browser(self):
+        part_url = f'from={self.from_city}&to={self.to_city}&date1={self.date}&currency=USD&locale=en&adults=1&children=0&infants=0'
+        base_url = f'{self.url}?{part_url}'
+        os.makedirs("result", exist_ok=True)
+        flight_date = datetime.strptime(self.date, "%Y-%m-%d").date()
+        today = datetime.today().date()
+        
+        if flight_date < today:
+            return False
+                
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=False)
+            page = await browser.new_page()
+            await page.goto(base_url, wait_until="networkidle")
+            redirect_url = page.url.split('?')[0].split('/')[-1]
+            self.file_path = f"result/{redirect_url}"
+            
+            html_content = await page.content()
+            with open(self.file_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+
+            await browser.close()
+        return True
+
+    async def load_file(self):
+        if not await self.load_browser():
+            return False
+
+        with open(self.file_path, 'r', encoding='utf-8') as file:
+            self.html_content = file.read()
+        self.soup = BeautifulSoup(self.html_content, 'html.parser')
+        return True
+
+    def extract_flight_info(self):
+        try:
+            ticket = self.soup.find('div', class_='booking-ticket-item', id='segmentfirst')
+            if not ticket:
+                return {}
+
+            self.flight_info = {
+                'flight_number': ticket.find('div', class_='booking-ticket-item-number flight').get_text(strip=True),
+                'from': ticket.find('div', class_='booking-ticket-item-direction fromto_name').find_all('span')[0].get_text(strip=True),
+                'to': ticket.find('div', class_='booking-ticket-item-direction fromto_name').find_all('span')[1].get_text(strip=True),
+                'departure_time': ticket.find('div', class_='booking-ticket-item-time deptime').get_text(strip=True),
+                'arrival_time': ticket.find('div', class_='booking-ticket-item-time text-right arrtime').get_text(strip=True),
+                'departure_date': ticket.find('div', class_='booking-ticket-item-date depdate').get_text(separator=' ', strip=True),
+                'arrival_date': ticket.find('div', class_='booking-ticket-item-date text-right arrdate').get_text(separator=' ', strip=True),
+                'airplane': ticket.find('div', class_='booking-ticket-item-flight-airplane board').get_text(strip=True)
+            }
+            return self.flight_info
+
+        except Exception as e:
+            print(f"[Xatolik] Reys ma'lumotlarini olishda: {e}")
+            return {}
+
+    def parse_tariffs(self):
+        modal_spans = self.soup.find_all('span', class_='modal-top-right-text')
+        results = []
+
+        for span in modal_spans:
+            tariff_class = span.get_text(strip=True)
+            modal_window = span.find_parent('div', class_='modal-window')
+            if not modal_window:
+                continue
+
+            modal_id = modal_window.get('id', '')
+            if not modal_id.startswith('penalty'):
+                continue
+
+            tariff_id = modal_id.replace('penalty', '')
+            tariff_cols = self.soup.find_all('div', class_='tariff-col')
+
+            for col in tariff_cols:
+                link = col.find('a', href=lambda x: x and tariff_id in x)
+                if not link:
+                    continue
+
+                features = col.find_all('div', class_='tariff-feature')
+                has_refund = any("Qaytarish bilan" in f.get_text(strip=True) for f in features)
+                if not has_refund:
+                    continue
+
+                price_div = col.find('div', class_='tariff-price')
+                if not price_div:
+                    continue
+
+                price_text = price_div.get_text(strip=True)
+                price_match = re.search(r'(\d+\.?\d*)', price_text)
+                if not price_match:
+                    continue
+
+                price = price_match.group(1)
+                currency_div = price_div.find('div', class_='price-currency')
+                currency = currency_div.get_text(strip=True) if currency_div else 'USD'
+
+                tariff_title = col.find('h4', class_='tariff-title')
+                tariff_type = tariff_title.get_text(strip=True) if tariff_title else 'Nomaʼlum'
+
+                # 👇 Joylar sonini olish — bu yerda asosiy o'zgarish
+                seat_span = col.find('span', class_='tariff-left-places')
+                seats = seat_span.get_text(strip=True) if seat_span else 'Nomaʼlum'
+
+                if self.class_name in tariff_class:
+                    results.append({
+                        'route': f"{self.flight_info.get('from')} -> {self.flight_info.get('to')}",
+                        'flight_number': self.flight_info.get('flight_number'),
+                        'departure_time': self.flight_info.get('departure_time'),
+                        'arrival_time': self.flight_info.get('arrival_time'),
+                        'date': self.flight_info.get('departure_date'),
+                        'airplane': self.flight_info.get('airplane'),
+                        'tariff_type': tariff_type,
+                        'tariff_class': tariff_class,
+                        'price': price,
+                        'currency': currency,
+                        'available_seats': seats  # ✅ Qo‘shildi
+                    })
+                break
+
+        if self.file_path and os.path.exists(self.file_path):
+            os.remove(self.file_path)
+
+        return results
+
+    async def find_missing_classes(self):
+        found_classes = set()
+        if not await self.load_file():
+            return False
+
+        spans = self.soup.find_all('span', class_='modal-top-right-text')
+        for span in spans:
+            text = span.get_text(strip=True)
+            parts = text.split()
+            if len(parts) >= 2:
+                class_letter = parts[-1]
+                if class_letter in self.all_possible_classes:
+                    found_classes.add(class_letter)
+
+        missing = sorted(self.all_possible_classes - found_classes)
+        if self.file_path and os.path.exists(self.file_path):
+            os.remove(self.file_path)
+        return missing
+
+    async def run(self, class_name: str):
+        self.class_name = class_name
+        if not await self.load_file():
+            return False
+
+        flight_info = self.extract_flight_info()
+        if not flight_info:
+            return False
+        
+        results = self.parse_tariffs()
+        return results
+
+if __name__ == '__main__':
+    import asyncio
+    async def main():
+        parser = FlightParser(
+            from_city='TAS',
+            to_city='SKD',
+            date='2026-01-13',
+        )
+        # missing = await parser.find_missing_classes()
+        # print(missing)
+        result = await (parser.run(class_name="Iqtisodiy M"))
+        print(result)
+    asyncio.run(main())

@@ -47,16 +47,20 @@ def poyezd_licanse(numbers):
         one_time_keyboard=True
     )
 
-def signal_keyboard(train_number, date, route_key):
+def signal_keyboard(class_name, date, route_key):
     """🚆 Har bir signal uchun alohida 'To‘xtatish' tugmasi (InlineKeyboardMarkup)"""
-    keyboard = [[InlineKeyboardButton(f"⛔ {train_number} uchun to‘xtatish", callback_data=f"stop_signal:{route_key}:{train_number}:{date}")]]
+    keyboard = [[InlineKeyboardButton(f"⛔ Econom {class_name} uchun to‘xtatish", callback_data=f"stop_signal:{route_key}:{class_name}:{date}")]]
     return InlineKeyboardMarkup(keyboard)
 
+def select_class_button(class_names):
+    keyboard_btn = []
+    raw_keyboard = []
+    for indx in range(0, len(class_names)):
+        raw_keyboard.append(KeyboardButton(text=f'Econom {class_names[indx]}'))
+        if (indx + 1)%3 == 0:
+            keyboard_btn.append(raw_keyboard)
+            raw_keyboard = []
+    if raw_keyboard != []:
+        keyboard_btn.append(raw_keyboard)
 
-def select_class_button():
-    keyboard_btn = [
-        [KeyboardButton(text="Econom"), KeyboardButton(text="Biznes"), KeyboardButton(text="VIP")],  
-        [KeyboardButton(text="Kupe"), KeyboardButton(text="Platskart"), KeyboardButton(text="Sidячий")],  
-        [KeyboardButton(text="ALL")]  
-    ]
     return ReplyKeyboardMarkup(keyboard=keyboard_btn, resize_keyboard=True)
