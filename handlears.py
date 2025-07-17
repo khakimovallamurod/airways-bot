@@ -188,7 +188,7 @@ async def add_comment_signal(update: Update, context: CallbackContext):
     job_name = f"signal_{chat_id}_{class_name}_{date}"
     
     job_queue.run_repeating(
-        send_signal_job, interval=1*60, first=0, name=job_name,
+        send_signal_job, interval=3*60, first=0, name=job_name,
         data={
             "chat_id": chat_id,
             "from_city": context.user_data['from_city'],
@@ -387,7 +387,7 @@ async def restart_active_signals(application):
         job_name = f"signal_{chat_id}_{class_name}_{date}"
 
         job_queue.run_repeating(
-            send_signal_job, interval=1*60, first=0, name=job_name,
+            send_signal_job, interval=3*60, first=0, name=job_name,
             data={
                 "chat_id": chat_id,
                 "from_city": from_city,
