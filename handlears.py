@@ -33,19 +33,33 @@ async def admin_start(update: Update, context: CallbackContext):
 
 async def insert_admin(update: Update, context: CallbackContext):
     airwaydb = db.AirwayDB()
-
     id_text = update.message.text
     chat_id = str(update.message.from_user.id)
-    if chat_id in USER_IDS :
+
+    if chat_id in USER_IDS:
         if airwaydb.add_admin(id_text):
-            await update.message.reply_text("Foydalanuvchi qo'shildi ✅")
+            await update.message.reply_text(
+                f"✅ Foydalanuvchi muvaffaqiyatli adminlar ro'yxatiga qo‘shildi!\nID: {id_text}"
+            )
+            try:
+                await context.bot.send_message(
+                    chat_id=int(id_text),
+                    text="🎉 Tabriklaymiz! Siz admin sifatida tizimga qo‘shildingiz."
+                )
+            except Exception as e:
+                pass
             return ConversationHandler.END
         else:
-            await update.message.reply_text("ID xato yoki User allaqachon mavjud ❌")
+            await update.message.reply_text(
+                "⚠️ Kiritilgan ID noto‘g‘ri yoki bu foydalanuvchi allaqachon admin sifatida mavjud."
+            )
     else:
-        await update.message.reply_text("Siz foydalanuvchi qo'sholmaysiz ❌")
+        await update.message.reply_text(
+            "⛔ Sizda foydalanuvchi qo‘shish huquqi yo‘q."
+        )
 
     return ConversationHandler.END
+
 
 async def railway_start(update: Update, context: CallbackContext):
     airwaydb = db.AirwayDB()
