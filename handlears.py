@@ -147,13 +147,16 @@ async def select_class(update: Update, context: CallbackContext):
     if not airwaydb.is_valid_date(date):
         await update.message.reply_text("Sanani noto'g'ri formatda kiritdingiz, iltimos qayta urinib ko'ring (Year-Month-Day)!")
         return DATE
-    
+    waiting_message = await update.message.reply_text("⏳ Iltimos kutib turing, classlar aniqlanmoqda...")
+
     parser = get_airwasydata.FlightParser(
         from_city=context.user_data['from_city'].split(':')[1],
         to_city=context.user_data['to_city'].split(':')[1],
         date=context.user_data['date'],
         )
     class_names = await parser.find_missing_classes()
+    await waiting_message.delete()
+
     if class_names:
         await update.message.reply_text("Class turini tanlang:", reply_markup=keyboards.select_class_button(class_names))
         return SELECT
@@ -175,7 +178,7 @@ async def add_comment_signal(update: Update, context: CallbackContext):
     date = context.user_data['date']
     comment = context.user_data['comment']
     await update.message.reply_text(
-        f"✈️ Econom {class_name} kuzatuv boshlandi!\n\nHar 4 daqiqada yangilanadi.",
+        f"✈️ Econom {class_name} kuzatuv boshlandi!\n\nHar 3 daqiqada yangilanadi.",
     )
 
     if context.application is None or context.application.job_queue is None:
@@ -185,7 +188,7 @@ async def add_comment_signal(update: Update, context: CallbackContext):
     job_name = f"signal_{chat_id}_{class_name}_{date}"
     
     job_queue.run_repeating(
-        send_signal_job, interval=2*60, first=0, name=job_name,
+        send_signal_job, interval=1*60, first=0, name=job_name,
         data={
             "chat_id": chat_id,
             "from_city": context.user_data['from_city'],
@@ -206,23 +209,18 @@ async def send_signal_job(context: CallbackContext):
     
     chat_id = job.data["chat_id"]
     date = job.data.get("date", None)
-
     stationFrom, stationFromCode = job.data["from_city"].split(':')
     stationTo, stationToCode = job.data["to_city"].split(':')
     signal_comment = job.data.get("comment")
     class_name = job.data.get('class_name')
-
+    
     parser = get_airwasydata.FlightParser(
         from_city=stationFromCode,
         to_city=stationToCode,
         date=date,
         )
-    parser_tariffs = await parser.run(class_name=f'Iqtisodiy {class_name}')
-    print(parser_tariffs)
-    if parser_tariffs == False or parser_tariffs==[]:
-        results_signal_text = f"✈️ Econom {class_name} uchun joylar tekshirilmoqda...\n"
-    
-        add_for_data = {
+    obj = db.AirwayDB()
+    add_for_data = {
                     'chat_id': chat_id,
                     'date': date,
                     'comment': signal_comment,
@@ -231,12 +229,20 @@ async def send_signal_job(context: CallbackContext):
                     'route': [stationFrom, stationTo],
                     'stationFromCode':stationFromCode,
                     'stationToCode': stationToCode
-        }
+    }
+    parser_tariffs = await parser.run(class_name=f'Iqtisodiy {class_name}')
+    if parser_tariffs == False or parser_tariffs==[]:
+        results_signal_text = f"✈️ Econom {class_name} uchun joylar tekshirilmoqda...\n"
+    
         
-        obj = db.AirwayDB()
         obj.data_insert(data=add_for_data)
     else:
+        
         route_key = f'{stationFromCode}_{stationToCode}'
+        doc_id = f"{chat_id}_{class_name}_{date}_{route_key}"
+        signal_datas = obj.get_signal_data(doc_id=doc_id)
+        if not signal_datas:
+            obj.data_insert(data=add_for_data)
         data = parser_tariffs[0]
         results_signal_text = (
             f"✈️ *{data['route']}*\n"
@@ -249,12 +255,11 @@ async def send_signal_job(context: CallbackContext):
             f"📦 Joylar soni: {data.get('available_seats', 'Nomaʼlum')}\n"
             f"💰 Narx: {data['price']} {data['currency']}"
         )
-
-
+        
         reply_markup = keyboards.signal_keyboard(class_name, date=date, route_key=route_key)
         await context.bot.send_message(
             chat_id=chat_id,
-            text=f"Signal: \n{results_signal_text}",
+            text=f"📡 Signal: \n{results_signal_text}",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -374,15 +379,15 @@ async def restart_active_signals(application):
     for act_data in actives_data:
         chat_id = act_data['chat_id']
         date = act_data['date']
-        from_city = act_data['stationFromCode']
-        to_city = act_data['stationToCode']
+        from_city = f"{act_data['route'][0]}:{act_data['stationFromCode']}"
+        to_city = f"{act_data['route'][1]}:{act_data['stationToCode']}"
         class_name = act_data.get('class_name', 'Noma’lum')
         comment = act_data.get('comment', '')
 
         job_name = f"signal_{chat_id}_{class_name}_{date}"
 
         job_queue.run_repeating(
-            send_signal_job, interval=2*60, first=0, name=job_name,
+            send_signal_job, interval=1*60, first=0, name=job_name,
             data={
                 "chat_id": chat_id,
                 "from_city": from_city,
