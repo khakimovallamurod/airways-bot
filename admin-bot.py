@@ -30,7 +30,9 @@ def main():
             handlears.ADD_COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.add_comment_signal)],
        
         },
-        fallbacks=[CommandHandler("cancel", handlears.cancel)],
+        fallbacks=[
+            CommandHandler("cancel", handlears.cancel),
+            ],
         per_message=False
     )
 
@@ -50,7 +52,7 @@ def main():
 
     asyncio.get_event_loop().run_until_complete(start_jobs(dp))
 
-    dp.run_polling(allowed_updates=Update.ALL_TYPES, timeout=300)
+    dp.run_polling(allowed_updates=Update.ALL_TYPES, timeout=30)
 
 if __name__ == '__main__':
     main()

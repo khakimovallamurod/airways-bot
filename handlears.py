@@ -5,6 +5,8 @@ import asyncio
 import db
 import time
 import get_airwasydata
+from telegram import ReplyKeyboardRemove
+
 
 USER_IDS = ['6889331565', '608913545', '1383186462']
 
@@ -135,7 +137,9 @@ async def to_city_selected(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
     context.user_data['to_city'] = query.data
-    
+    if query.message:
+        await query.message.delete()
+        
     await query.message.reply_text("Sanani kiriting ushbu formatda (Year-Month-Day)!")
     return DATE
 
@@ -168,7 +172,10 @@ async def signal_start(update: Update, context: CallbackContext):
     """🚆 Signalni boshlash (InlineKeyboardMarkup orqali)"""
 
     context.user_data["class_name"] = update.message.text.strip().split(' ')[-1].strip()
-    await update.message.reply_text("Comment qo'shing:")
+    await update.message.reply_text(
+        "💬 Comment qo'shing:",
+        reply_markup=ReplyKeyboardRemove()
+    )
     return ADD_COMMENT
 
 async def add_comment_signal(update: Update, context: CallbackContext):
@@ -400,5 +407,5 @@ async def restart_active_signals(application):
 
 
 async def cancel(update: Update, context: CallbackContext):
-    await update.message.reply_text('Amalyot bajarilmadi!')
+    await update.message.reply_text('❌ Jarayon bekor qilindi.')
     return ConversationHandler.END
