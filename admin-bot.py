@@ -25,8 +25,9 @@ def main():
         states={
             handlears.FROM_CITY: [CallbackQueryHandler(handlears.from_city_selected)],
             handlears.TO_CITY: [CallbackQueryHandler(handlears.to_city_selected)],
-            handlears.DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.select_class)],
-            handlears.SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.signal_start)],
+            handlears.DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.get_filghts_selected)],
+             handlears.FL_NUM: [CallbackQueryHandler(handlears.select_class)],
+            handlears.SELECT: [CallbackQueryHandler(handlears.signal_start)],
             handlears.ADD_COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.add_comment_signal)],
        
         },

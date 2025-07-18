@@ -13,7 +13,9 @@ def get_viloyats():
         "Termiz": "TMJ",
         "Urganch": "UGC",
         "Navoiy": "NVI",
-        "Qarshi": "KSQ"
+        "Qarshi": "KSQ",
+        "Bishkek": "FRU",
+        "Boku": "GYD"
     }
     keyboards_btns = []
     row = []
@@ -54,13 +56,29 @@ def signal_keyboard(class_name, date, route_key):
 
 def select_class_button(class_names):
     keyboard_btn = []
-    raw_keyboard = []
-    for indx in range(0, len(class_names)):
-        raw_keyboard.append(KeyboardButton(text=f'Econom {class_names[indx]}'))
-        if (indx + 1)%3 == 0:
-            keyboard_btn.append(raw_keyboard)
-            raw_keyboard = []
-    if raw_keyboard != []:
-        keyboard_btn.append(raw_keyboard)
+    row = []
 
-    return ReplyKeyboardMarkup(keyboard=keyboard_btn, resize_keyboard=True)
+    for i, cls in enumerate(class_names):
+        callback_data = f'class_selected:{cls}'
+        btn = InlineKeyboardButton(text=f'Econom {cls}', callback_data=callback_data)
+        row.append(btn)
+
+        if (i + 1) % 2 == 0:
+            keyboard_btn.append(row)
+            row = []
+
+    if row:
+        keyboard_btn.append(row)
+
+    return InlineKeyboardMarkup(keyboard_btn)
+
+
+def select_flight_button(flights: dict):
+    keyboard_btns = []
+
+    for number, classes in flights.items():
+        classes_text = '_'.join(classes)
+        button = InlineKeyboardButton(text=f"HY {number}", callback_data=f'{number}:{classes_text}')
+        keyboard_btns.append([button]) 
+        
+    return InlineKeyboardMarkup(keyboard_btns)

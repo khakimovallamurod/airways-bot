@@ -10,7 +10,7 @@ from telegram import ReplyKeyboardRemove
 
 USER_IDS = ['6889331565', '608913545', '1383186462']
 
-FROM_CITY, TO_CITY, DATE, SELECT, ADD_COMMENT = range(5)
+FROM_CITY, TO_CITY, DATE, FL_NUM, SELECT, ADD_COMMENT = range(6)
 ID_START = range(1)
 
 async def start(update: Update, context: CallbackContext):
@@ -157,39 +157,62 @@ async def to_city_selected(update: Update, context: CallbackContext):
     await query.message.reply_text("Sanani kiriting ushbu formatda (Year-Month-Day)!")
     return DATE
 
-async def select_class(update: Update, context: CallbackContext):
+async def get_filghts_selected(update: Update, context: CallbackContext):
     context.user_data['date'] = update.message.text.strip()
-    date = context.user_data['date']
     airwaydb = db.AirwayDB()
+    waiting_message = await update.message.reply_text("⏳ Please wait, flight numbers are being identified...")
 
+    date = context.user_data['date']
     if not airwaydb.is_valid_date(date):
-        await update.message.reply_text("Sanani noto'g'ri formatda kiritdingiz, iltimos qayta urinib ko'ring (Year-Month-Day)!")
+        await update.message.reply_text("📅 You entered the date in the wrong format, please try again!")
         return DATE
-    waiting_message = await update.message.reply_text("⏳ Iltimos kutib turing, classlar aniqlanmoqda...")
 
     parser = get_airwasydata.FlightParser(
         from_city=context.user_data['from_city'].split(':')[1],
         to_city=context.user_data['to_city'].split(':')[1],
         date=context.user_data['date'],
         )
-    class_names = await parser.find_missing_classes()
+    
+    flights: dict = await parser.find_missing_classes()
     await waiting_message.delete()
 
-    if class_names:
-        await update.message.reply_text("Class turini tanlang:", reply_markup=keyboards.select_class_button(class_names))
-        return SELECT
+    if flights != {}:
+
+        await update.message.reply_text("Select a flight number:", reply_markup=keyboards.select_flight_button(flights))
+        return FL_NUM
     else:
-        await update.message.reply_text("Bu sanada ma'lumot eskirgan, iltimos qayta urinib ko'ring (Year-Month-Day)!")
-        return DATE
+
+        class_names = ['R', 'P', 'L', 'U', 'S', 'O', 'V', 'T', 'K', 'M', 'B', 'Y', 'I', 'D', 'C']
+        await update.message.reply_text("Select a class type:", reply_markup=keyboards.select_class_button(class_names))
+        return SELECT
+    
+async def select_class(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data  # misol: '1234:Y_P_R'
+    parts = data.split(':')
+
+    flight_number = parts[0]         
+    class_list_str = parts[1]       
+    classes = class_list_str.split('_')  
+
+    context.user_data['flight_number'] = flight_number
+
+    await query.edit_message_text(
+        text=f"✈️ Flight HY {flight_number} selected.\n\nPlease select a class type:",
+        reply_markup=keyboards.select_class_button(classes)
+    )
+    return SELECT
     
 async def signal_start(update: Update, context: CallbackContext):
     """🚆 Signalni boshlash (InlineKeyboardMarkup orqali)"""
 
-    context.user_data["class_name"] = update.message.text.strip().split(' ')[-1].strip()
-    await update.message.reply_text(
-        "💬 Comment qo'shing:",
-        reply_markup=ReplyKeyboardRemove()
-    )
+    query = update.callback_query
+    await query.answer()
+    class_data = query.data.split(':')
+    context.user_data['class_name'] = class_data[1]
+    await query.message.reply_text("💬 Comment qo'shing:")
     return ADD_COMMENT
 
 async def add_comment_signal(update: Update, context: CallbackContext):

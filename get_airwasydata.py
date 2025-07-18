@@ -22,7 +22,7 @@ class FlightParser:
         self.class_name = None
 
     async def load_browser(self):
-        part_url = f'from={self.from_city}&to={self.to_city}&date1={self.date}&currency=USD&locale=en&adults=1&children=0&infants=0'
+        part_url = f'from={self.from_city}&to={self.to_city}&date1={self.date}&currency=UZS&locale=en&adults=1&children=0&infants=0'
         base_url = f'{self.url}?{part_url}'
         os.makedirs("result", exist_ok=True)
         flight_date = datetime.strptime(self.date, "%Y-%m-%d").date()
@@ -32,7 +32,7 @@ class FlightParser:
             return False
                 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=False)
             page = await browser.new_page()
             await page.goto(base_url, wait_until="networkidle", timeout=60000)
             redirect_url = page.url.split('?')[0].split('/')[-1]
@@ -82,6 +82,8 @@ class FlightParser:
 
         for span in modal_spans:
             tariff_class = span.get_text(strip=True)
+            print(tariff_class)
+            print(self.class_name)
             modal_window = span.find_parent('div', class_='modal-window')
             if not modal_window:
                 continue
@@ -114,7 +116,7 @@ class FlightParser:
 
                 price = price_match.group(1)
                 currency_div = price_div.find('div', class_='price-currency')
-                currency = currency_div.get_text(strip=True) if currency_div else 'USD'
+                currency = currency_div.get_text(strip=True) if currency_div else 'UZS'
 
                 tariff_title = col.find('h4', class_='tariff-title')
                 tariff_type = tariff_title.get_text(strip=True) if tariff_title else 'Nomaʼlum'
@@ -123,46 +125,86 @@ class FlightParser:
                 seat_span = col.find('span', class_='tariff-left-places')
                 seats = seat_span.get_text(strip=True) if seat_span else 'Nomaʼlum'
 
-                if self.class_name in tariff_class:
-                    results.append({
-                        'route': f"{self.flight_info.get('from')} -> {self.flight_info.get('to')}",
-                        'flight_number': self.flight_info.get('flight_number'),
-                        'departure_time': self.flight_info.get('departure_time'),
-                        'arrival_time': self.flight_info.get('arrival_time'),
-                        'date': self.flight_info.get('departure_date'),
-                        'airplane': self.flight_info.get('airplane'),
-                        'tariff_type': tariff_type,
-                        'tariff_class': tariff_class,
-                        'price': price,
-                        'currency': currency,
-                        'available_seats': seats  # ✅ Qo‘shildi
-                    })
-                break
-
+                # if self.class_name in tariff_class:
+                results.append({
+                    'route': f"{self.flight_info.get('from')} -> {self.flight_info.get('to')}",
+                    'flight_number': self.flight_info.get('flight_number'),
+                    'departure_time': self.flight_info.get('departure_time'),
+                    'arrival_time': self.flight_info.get('arrival_time'),
+                    'date': self.flight_info.get('departure_date'),
+                    'airplane': self.flight_info.get('airplane'),
+                    'tariff_type': tariff_type,
+                    'tariff_class': tariff_class,
+                    'price': price,
+                    'currency': currency,
+                    'available_seats': seats  # ✅ Qo‘shildi
+                })
+                # break
+                print(results)
         if self.file_path and os.path.exists(self.file_path):
             os.remove(self.file_path)
-
+        
         return results
-
-    async def find_missing_classes(self):
-        found_classes = set()
+    
+    def get_flights_list(self):
+        """Berilgan sanadagi barcha reyslarni qaytaradi"""
+        flights = []
+        try:
+            flight_time_area = self.soup.find('div', id='OWtime_form')
+            if flight_time_area:
+                labels = flight_time_area.find_all('label')
+                for label in labels:
+                    span = label.find('span', class_='value')
+                    if span:
+                        flight_data = {
+                            'flight_number': span.find('span', class_='flight-data').get_text(strip=True),
+                            'departure_time': span.get_text(strip=True).split()[0]
+                        }
+                        flights.append(flight_data)
+            
+            flight_time_area2 = self.soup.find('div', id='OW2time_form')
+            if flight_time_area2 and flight_time_area2.text.strip():
+                labels = flight_time_area2.find_all('label')
+                for label in labels:
+                    span = label.find('span', class_='value')
+                    if span:
+                        flight_data = {
+                            'flight_number': span.find('span', class_='flight-data').get_text(strip=True),
+                            'departure_time': span.get_text(strip=True).split()[0]
+                        }
+                        flights.append(flight_data)
+                        
+        except Exception as e:
+            print(f"[Xatolik] Reyslar ro'yxatini olishda: {e}")
+            return []
+        
+        return flights
+    
+    async def find_missing_classes(self) -> dict:
+        """Har bir reys uchun yo'qolgan klasslarni aniqlaydi"""
         if not await self.load_file():
-            return False
+            return {}
 
-        spans = self.soup.find_all('span', class_='modal-top-right-text')
-        for span in spans:
-            text = span.get_text(strip=True)
-            parts = text.split()
-            if len(parts) >= 2:
-                class_letter = parts[-1]
-                if class_letter in self.all_possible_classes:
-                    found_classes.add(class_letter)
+        flights = self.get_flights_list()
+        missing_classes_dict = {}
 
-        missing = sorted(self.all_possible_classes - found_classes)
-        print(missing)
-        # if self.file_path and os.path.exists(self.file_path):
-        #     os.remove(self.file_path)
-        return missing
+        for flight in flights:
+            flight_number = flight['flight_number']  # Masalan, "HY 53"
+            found_classes = set()
+
+            spans = self.soup.find_all('span', class_='modal-top-right-text')
+            for span in spans:
+                text = span.get_text(strip=True)
+                parts = text.split()
+                if len(parts) >= 2:
+                    class_letter = parts[-1]
+                    if class_letter in self.all_possible_classes:
+                        found_classes.add(class_letter)
+
+            missing = sorted(self.all_possible_classes - found_classes)
+            missing_classes_dict[flight_number] = missing
+
+        return missing_classes_dict
     
     async def run(self, class_name: str):
         self.class_name = class_name
@@ -181,11 +223,11 @@ if __name__ == '__main__':
     async def main():
         parser = FlightParser(
             from_city='TAS',
-            to_city='SKD',
-            date='2026-01-13',
+            to_city='UGC',
+            date='2025-09-13',
         )
-        # missing = await parser.find_missing_classes()
-        # print(missing)
-        result = await (parser.run(class_name="Iqtisodiy M"))
-        print(result)
+        missing = await parser.find_missing_classes()
+        print(missing)
+        # result = await (parser.run(class_name="Iqtisodiy M"))
+        # print(result)
     asyncio.run(main())
