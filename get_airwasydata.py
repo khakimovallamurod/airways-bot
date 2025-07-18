@@ -159,10 +159,11 @@ class FlightParser:
                     found_classes.add(class_letter)
 
         missing = sorted(self.all_possible_classes - found_classes)
-        if self.file_path and os.path.exists(self.file_path):
-            os.remove(self.file_path)
+        print(missing)
+        # if self.file_path and os.path.exists(self.file_path):
+        #     os.remove(self.file_path)
         return missing
-
+    
     async def run(self, class_name: str):
         self.class_name = class_name
         if not await self.load_file():
