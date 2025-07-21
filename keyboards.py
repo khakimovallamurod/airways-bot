@@ -32,36 +32,21 @@ def get_viloyats():
         keyboards_btns
     )
     
-def poyezd_licanse(numbers):
-    keyboards_btns = []
-    row = []
-    for num in numbers:
-        row.append(KeyboardButton(text=num))
-        if len(row) == 2:
-            keyboards_btns.append(row)
-            row = []
-    if row:
-        keyboards_btns.append(row)
-
-    return ReplyKeyboardMarkup(
-        keyboards_btns,
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
 
 def signal_keyboard(class_name, date, route_key):
     """🚆 Har bir signal uchun alohida 'To‘xtatish' tugmasi (InlineKeyboardMarkup)"""
     keyboard = [[InlineKeyboardButton(f"⛔ Econom {class_name} uchun to‘xtatish", callback_data=f"stop_signal:{route_key}:{class_name}:{date}")]]
     return InlineKeyboardMarkup(keyboard)
 
-def select_class_button(class_names):
+def select_class_button(selected_classes, class_names):
     keyboard_btn = []
     row = []
 
     for i, cls in enumerate(class_names):
-        callback_data = f'class_selected:{cls}'
-        btn = InlineKeyboardButton(text=f'Econom {cls}', callback_data=callback_data)
-        row.append(btn)
+        is_selected = cls in selected_classes
+        label = f"{'✅ ' if is_selected else ''}Econom {cls}"
+        callback_data = f'toggle_class:{cls}'
+        row.append(InlineKeyboardButton(text=label, callback_data=callback_data))
 
         if (i + 1) % 2 == 0:
             keyboard_btn.append(row)
@@ -70,7 +55,13 @@ def select_class_button(class_names):
     if row:
         keyboard_btn.append(row)
 
+    # Yakuniy tasdiqlash tugmasi
+    keyboard_btn.append([
+        InlineKeyboardButton(text="✅ Tasdiqlash", callback_data='confirm_classes')
+    ])
+
     return InlineKeyboardMarkup(keyboard_btn)
+
 
 
 def select_flight_button(flights: dict):

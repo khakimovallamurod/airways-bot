@@ -21,19 +21,23 @@ def main():
     dp.add_handler(CommandHandler('start', handlears.start))
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("airwaystart", handlears.railway_start)],
+        entry_points=[CommandHandler("airwaystart", handlears.airway_start)],
         states={
             handlears.FROM_CITY: [CallbackQueryHandler(handlears.from_city_selected)],
             handlears.TO_CITY: [CallbackQueryHandler(handlears.to_city_selected)],
             handlears.DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.get_filghts_selected)],
-             handlears.FL_NUM: [CallbackQueryHandler(handlears.select_class)],
-            handlears.SELECT: [CallbackQueryHandler(handlears.signal_start)],
-            handlears.ADD_COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.add_comment_signal)],
-       
-        },
-        fallbacks=[
-            CommandHandler("cancel", handlears.cancel),
+            handlears.FL_NUM: [CallbackQueryHandler(handlears.select_class)],
+
+            handlears.SELECT: [
+                CallbackQueryHandler(handlears.select_class, pattern=r'^toggle_class:'),
+                CallbackQueryHandler(handlears.select_class, pattern='^confirm_classes$'),
             ],
+
+            handlears.ADD_COMMENT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.add_comment_signal)
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", handlears.cancel)],
         per_message=False
     )
 

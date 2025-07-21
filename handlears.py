@@ -20,15 +20,16 @@ async def start(update: Update, context: CallbackContext):
     chat_id = user.id
     if airwaydb.check_admin(chat_id):
         await update.message.reply_text(
-            text=f"""Assalomu aleykum {user.full_name}. Ushbu bot yordamida joylar sonini aniqlashingiz mumkin. /airwaystart""",
+            text=f"""Hello {user.full_name}! 👋\n\nUsing this bot, you can monitor seat availability for flights.\nType /airwaystart to begin.""",
         )
     else:
         await update.message.reply_text(
-            text=f"""Assalomu aleykum {user.full_name}. Siz bu botdan foydalana olmaysiz 😔""",
+            text=f"""Hello {user.full_name}. 😔\nYou are not authorized to use this bot.""",
         )
 
+
 async def admin_start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Foydalnuvchi IDsini yuboring.")
+    await update.message.reply_text("Please send the user IDs.")
     return ID_START
 
 async def insert_admin(update: Update, context: CallbackContext):
@@ -39,40 +40,40 @@ async def insert_admin(update: Update, context: CallbackContext):
     if chat_id in USER_IDS:
         if airwaydb.add_admin(id_text):
             await update.message.reply_text(
-                f"✅ Foydalanuvchi muvaffaqiyatli adminlar ro'yxatiga qo‘shildi!\nID: {id_text}"
+                f"✅ User successfully added to the admin list!\nID: {id_text}"
             )
             try:
                 await context.bot.send_message(
                     chat_id=int(id_text),
-                    text="🎉 Tabriklaymiz! Siz admin sifatida tizimga qo‘shildingiz."
+                    text="🎉 Congratulations! You have been added to the system as an admin."
                 )
             except Exception as e:
                 pass
             return ConversationHandler.END
         else:
             await update.message.reply_text(
-                "⚠️ Kiritilgan ID noto‘g‘ri yoki bu foydalanuvchi allaqachon admin sifatida mavjud."
+                "⚠️ The entered ID is invalid or this user already exists as an administrator."
             )
     else:
         await update.message.reply_text(
-            "⛔ Sizda foydalanuvchi qo‘shish huquqi yo‘q."
+            "⛔ You do not have permission to add users."
         )
 
     return ConversationHandler.END
 
 
-async def railway_start(update: Update, context: CallbackContext):
+async def airway_start(update: Update, context: CallbackContext):
     airwaydb = db.AirwayDB()
     chat_id = update.message.from_user.id
 
     if airwaydb.check_admin(chat_id):
-        msg = await update.message.reply_text("Poyezd tanlash boshlandi!!!")
+        msg = await update.message.reply_text("Flight selection has started!!!")
         context.user_data["last_message"] = msg.message_id
         
         return await get_from_city(update, context)
     else:
         await update.message.reply_text(
-            text=f"""Siz bu botdan foydalana olmaysiz 😔""",
+            text=f"""You are not authorized to use this bot 😔""",
         )
 async def safe_delete_message(bot, chat_id, message_id):
     try:
@@ -154,7 +155,7 @@ async def to_city_selected(update: Update, context: CallbackContext):
     if query.message:
         await query.message.delete()
         
-    await query.message.reply_text("Sanani kiriting ushbu formatda (Year-Month-Day)!")
+    await query.message.reply_text("📅 Please enter the date in the format YYYY-MM-DD (e.g., 2025-07-21):")
     return DATE
 
 async def get_filghts_selected(update: Update, context: CallbackContext):
@@ -183,149 +184,204 @@ async def get_filghts_selected(update: Update, context: CallbackContext):
     else:
 
         class_names = ['R', 'P', 'L', 'U', 'S', 'O', 'V', 'T', 'K', 'M', 'B', 'Y', 'I', 'D', 'C']
-        await update.message.reply_text("Select a class type:", reply_markup=keyboards.select_class_button(class_names))
+        context.user_data['available_classes'] = class_names
+        context.user_data['selected_classes'] = []
+
+        await update.message.reply_text(
+            "Select a class type:",
+            reply_markup=keyboards.select_class_button([], class_names)
+        )
         return SELECT
     
 async def select_class(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
+    data = query.data
 
-    data = query.data  # misol: '1234:Y_P_R'
-    parts = data.split(':')
+    if ':' in data and data.startswith('toggle_class'):
+        cls = data.split(':')[1]
+        selected = context.user_data.get('selected_classes', [])
+        if cls in selected:
+            selected.remove(cls)
+        else:
+            selected.append(cls)
 
-    flight_number = parts[0]         
-    class_list_str = parts[1]       
-    classes = class_list_str.split('_')  
+        context.user_data['selected_classes'] = selected
+        class_names = context.user_data.get('available_classes', [])
+        await query.edit_message_reply_markup(
+            reply_markup=keyboards.select_class_button(selected, class_names)
+        )
+        return SELECT
 
-    context.user_data['flight_number'] = flight_number
+    elif data == 'confirm_classes':
+        selected = context.user_data.get('selected_classes', [])
+        if not selected:
+            await query.edit_message_text("⚠️ Please select at least one class.")
+            return SELECT
 
-    await query.edit_message_text(
-        text=f"✈️ Flight HY {flight_number} selected.\n\nPlease select a class type:",
-        reply_markup=keyboards.select_class_button(classes)
-    )
-    return SELECT
-    
-async def signal_start(update: Update, context: CallbackContext):
-    """🚆 Signalni boshlash (InlineKeyboardMarkup orqali)"""
+        context.user_data['confirmed_classes'] = selected
+        await query.edit_message_text(
+            f"✅ Selected classes: {', '.join(selected)}\n\nWrite a comment:"
+        )
+        return ADD_COMMENT
 
-    query = update.callback_query
-    await query.answer()
-    class_data = query.data.split(':')
-    context.user_data['class_name'] = class_data[1]
-    await query.message.reply_text("💬 Comment qo'shing:")
-    return ADD_COMMENT
+    else:
+        flight_number, class_str = data.split(':')
+        classes = class_str.split('_')
+        context.user_data['flight_number'] = flight_number
+        context.user_data['available_classes'] = classes
+        context.user_data['selected_classes'] = []
+
+        await query.edit_message_text(
+            f"✈️ HY {flight_number} flight selected.\n\nPlease select a class:",
+            reply_markup=keyboards.select_class_button([], classes)
+        )
+        return SELECT
 
 async def add_comment_signal(update: Update, context: CallbackContext):
     context.user_data['comment'] = update.message.text.strip()
     chat_id = update.message.chat.id
-    class_name = context.user_data['class_name']
     date = context.user_data['date']
     comment = context.user_data['comment']
+    class_names = context.user_data.get('confirmed_classes', [])
+
+    if not class_names:
+        await update.message.reply_text("⚠ No class selected.")
+        return ConversationHandler.END
+
     await update.message.reply_text(
-        f"✈️ Econom {class_name} kuzatuv boshlandi!\n\nHar 3 daqiqada yangilanadi.",
+        f"✈️ Signals started for classes: {', '.join(class_names)}\n\nUpdates will be sent every 3 minutes."
     )
 
     if context.application is None or context.application.job_queue is None:
-        await update.message.reply_text("⚠ Xatolik: Job Queue ishlamayapti!")
+        await update.message.reply_text("⚠️ Error: Job Queue is not working!")
         return
+
     job_queue = context.application.job_queue
-    job_name = f"signal_{chat_id}_{class_name}_{date}"
-    
+    job_name = f"signal_{chat_id}_{'_'.join(class_names)}_{date}"
+    flight_number = context.user_data.get('flight_number')
+
     job_queue.run_repeating(
-        send_signal_job, interval=3*60, first=0, name=job_name,
+        send_signal_job, interval=1*60, first=0, name=job_name,
         data={
             "chat_id": chat_id,
             "from_city": context.user_data['from_city'],
             "to_city": context.user_data['to_city'],
-            "date": context.user_data['date'],
-            "class_name": class_name,
-            "comment": comment
+            "date": date,
+            "class_name": class_names,
+            "comment": comment,
+            "flight_number": flight_number 
         }
     )
+
     return ConversationHandler.END
 
-
 async def send_signal_job(context: CallbackContext):
-    """✈️ Rejalashtirilgan signal xabari (har bir poyezd uchun alohida)"""
-    job = context.job  
+    job = context.job
     if job is None or "chat_id" not in job.data:
         return
-    
+
     chat_id = job.data["chat_id"]
-    date = job.data.get("date", None)
+    date = job.data.get("date")
     stationFrom, stationFromCode = job.data["from_city"].split(':')
     stationTo, stationToCode = job.data["to_city"].split(':')
     signal_comment = job.data.get("comment")
-    class_name = job.data.get('class_name')
-    
+    class_names = job.data.get("class_name", [])
+    flight_number = job.data.get("flight_number")
+    obj = db.AirwayDB()
     parser = get_airwasydata.FlightParser(
         from_city=stationFromCode,
         to_city=stationToCode,
         date=date,
-        )
-    obj = db.AirwayDB()
-    add_for_data = {
-                    'chat_id': chat_id,
-                    'date': date,
-                    'comment': signal_comment,
-                    'class_name': class_name,
-                    'active': True,
-                    'route': [stationFrom, stationTo],
-                    'stationFromCode':stationFromCode,
-                    'stationToCode': stationToCode
-    }
-    parser_tariffs = await parser.run(class_name=f'Iqtisodiy {class_name}')
-    if parser_tariffs == False or parser_tariffs==[]:
-        results_signal_text = f"✈️ Econom {class_name} uchun joylar tekshirilmoqda...\n"
-    
-        
-        obj.data_insert(data=add_for_data)
-    else:
-        
-        route_key = f'{stationFromCode}_{stationToCode}'
-        doc_id = f"{chat_id}_{class_name}_{date}_{route_key}"
-        signal_datas = obj.get_signal_data(doc_id=doc_id)
-        if not signal_datas:
+    )
+
+    parser_results = await parser.run(class_name=class_names, flight_number=flight_number)  
+
+    route_key = f'{stationFromCode}_{stationToCode}'
+
+    if not parser_results:
+        for class_name in class_names:
+            add_for_data = {
+                'chat_id': chat_id,
+                'date': date,
+                'comment': signal_comment,
+                'class_name': class_name,
+                'active': True,
+                'route': [stationFrom, stationTo],
+                'stationFromCode': stationFromCode,
+                'stationToCode': stationToCode, 
+                'flight_number': flight_number
+            }
             obj.data_insert(data=add_for_data)
-        data = parser_tariffs[0]
+        return
+
+    for class_name in class_names:
+        matching_tariffs = [t for t in parser_results if t['tariff_class'].endswith(f" {class_name}")]
+        if not matching_tariffs:
+            obj.data_insert(data={
+                'chat_id': chat_id,
+                'date': date,
+                'comment': signal_comment,
+                'class_name': class_name,
+                'active': True,
+                'route': [stationFrom, stationTo],
+                'stationFromCode': stationFromCode,
+                'stationToCode': stationToCode,
+                'flight_number': flight_number
+            })
+            continue
+
+        doc_id = f"{chat_id}_{class_name}_{date}_{route_key}"
+        if not obj.get_signal_data(doc_id=doc_id):
+            obj.data_insert(data={
+                'chat_id': chat_id,
+                'date': date,
+                'comment': signal_comment,
+                'class_name': class_name,
+                'active': True,
+                'route': [stationFrom, stationTo],
+                'stationFromCode': stationFromCode,
+                'stationToCode': stationToCode,
+                'flight_number': flight_number
+            })
+
+        data = matching_tariffs[0]
         results_signal_text = (
             f"✈️ *{data['route']}*\n"
-            f"📅 Sana: {data['date']}\n"
-            f"🔢 Reys raqami: {data['flight_number']}\n"
-            f"🛫 Uchish vaqti: {data['departure_time']}\n"
-            f"🛬 Qo‘nish vaqti: {data['arrival_time']}\n"
-            f"🛩️ Samolyot: {data['airplane']}\n"
+            f"📅 Date: {data['date']}\n"
+            f"🔢 Flight Number: {data['flight_number']}\n"
+            f"🛫 Departure Time: {data['departure_time']}\n"
+            f"🛬 Arrival Time: {data['arrival_time']}\n"
+            f"🛩️ Aircraft: {data['airplane']}\n"
             f"💺 Tariff: {data['tariff_type']} ({data['tariff_class']})\n"
-            f"📦 Joylar soni: {data.get('available_seats', 'Nomaʼlum')}\n"
-            f"💰 Narx: {data['price']} {data['currency']}"
+            f"📦 Available Seats: {data.get('available_seats', 'Unknown')}\n"
+            f"💰 Price: {data['price']} {data['currency']}"
         )
-        
+
         reply_markup = keyboards.signal_keyboard(class_name, date=date, route_key=route_key)
         await context.bot.send_message(
             chat_id=chat_id,
-            text=f"📡 Signal: \n{results_signal_text}",
+            text=f"📡 Signal:\n{results_signal_text}",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
 
+
 async def stop_signal(update: Update, context: CallbackContext):
-    """🚫 Signalni to‘xtatish (InlineKeyboardMarkup orqali — Aviaparvozlar uchun)"""
+    """🚫 Signalni to‘xtatish (biror klass uchun)"""
     query = update.callback_query
     await query.answer()
 
-    query_data = query.data.split(':')  # stop_signal:TAS_BHK:Econom_M:2025-07-18
-    route_key = query_data[1]
-    class_name = query_data[2]
-    date = query_data[3]
+    _, route_key, class_name, date = query.data.split(':')
 
-    chat_id = update.effective_chat.id
+    chat_id = query.message.chat.id
     doc_id = f"{chat_id}_{class_name}_{date}_{route_key}"
 
     obj = db.AirwayDB()
     signal_datas = obj.get_signal_data(doc_id=doc_id)
 
     if not signal_datas:
-        await query.message.reply_text("⚠ Xatolik: Signal ma'lumotlari topilmadi.")
+        await query.message.reply_text("⚠️ Signal not found or already stopped.")
         return
 
     from_city, to_city = signal_datas['route']
@@ -334,81 +390,87 @@ async def stop_signal(update: Update, context: CallbackContext):
 
     results_signal_text = (
         f"✈️ {from_city} → {to_city}\n"
-        f"📅 Sana: {date}\n"
-        f"💺 Klass: {class_name}\n"
+        f"📅 Date: {date}\n"
+        f"💺 Tariff: {class_name}\n"
         f"💬 Comment: {comment}"
     )
 
-    if not context.application or not context.application.job_queue:
-        await query.message.reply_text("⚠ Xatolik: Job Queue topilmadi.")
+    job_name = f"signal_{chat_id}_{class_name}_{date}"
+    job_queue = context.application.job_queue if context.application else None
+
+    if not job_queue:
+        await query.message.reply_text("⚠️ Error: Job Queue not found.")
         return
 
-    job_name = f"signal_{chat_id}_{class_name}_{date}"
-    current_jobs = context.application.job_queue.get_jobs_by_name(job_name)
+    current_jobs = job_queue.get_jobs_by_name(job_name)
 
     if current_jobs:
         if active:
-            # ⛔ JOB'NI TO‘XTATISH (ENG MUHIM QISM)
             for job in current_jobs:
-                job.schedule_removal()  # yoki job.cancel()
+                job.schedule_removal()
 
-            # BAZADAGI STATUSNI YANGILASH
             obj.update_signal(doc_id=doc_id)
 
-            await query.message.reply_text(f"🚫 Parvoz kuzatuvi to‘xtatildi.\n{results_signal_text}")
+            await query.message.reply_text(f"🚫 Tracking stopped:\n\n{results_signal_text}")
         else:
-            await query.message.reply_text(f"🚫 Signal allaqachon to‘xtatilgan!")
+            await query.message.reply_text("ℹ️ The signal has already been stopped.")
     else:
-        await query.message.reply_text("⚠ Aktiv kuzatuv topilmadi.")
-
-    await asyncio.sleep(2)
+        await query.message.reply_text("⚠️ No active tracking found.")
 
 async def view_actives(update: Update, context: CallbackContext):
-    """📋 Faol aviaparvoz signallarini ko‘rsatish"""
+    """📋 Faol aviaparvoz signallarini ko‘rsatish (multi-class formatda)"""
     chat_id = update.message.chat.id
     airwayobj = db.AirwayDB()
-    if airwayobj.check_admin(chat_id):
-        actives_data = airwayobj.get_actives()
-        if not actives_data:
-            await update.message.reply_text("❌ Hech qanday aktiv signal topilmadi.")
-            return
 
-        job_queue = context.application.job_queue
-        active_jobs = {job.name for job in job_queue.jobs()}
-        found_active = False
+    if not airwayobj.check_admin(chat_id):
+        await update.message.reply_text("❌ You are not authorized to view active signals.")
+        return
 
-        for act_data in actives_data:
-            class_name = act_data['class_name']
-            date = act_data['date']
-            comment = act_data.get('comment', '')
-            route = act_data['route']
-            route_key = f"{act_data['stationFromCode']}_{act_data['stationToCode']}"
+    actives_data = airwayobj.get_actives()
+    if not actives_data:
+        await update.message.reply_text("❌ No active signals found.")
+        return
 
-            job_name = f"signal_{chat_id}_{class_name}_{date}"
-            if job_name in active_jobs:
-                found_active = True
+    job_queue = context.application.job_queue
+    active_jobs = {job.name for job in job_queue.jobs()}
+    found_active = False
 
-                results_signal_text = (
-                    f"✈️ {route[0]} → {route[1]}\n"
-                    f"📅 Sana: {date}\n"
-                    f"💺 Klass: {class_name}\n"
-                    f"💬 Comment: {comment}"
-                )
+    for act_data in actives_data:
+        class_name = act_data['class_name']
+        date = act_data['date']
+        comment = act_data.get('comment', '')
+        route = act_data['route']
+        from_code = act_data['stationFromCode']
+        to_code = act_data['stationToCode']
+        route_key = f"{from_code}_{to_code}"
 
-                reply_markup = keyboards.signal_keyboard(class_name=class_name, date=date, route_key=route_key)
+        job_name = f"signal_{chat_id}_{class_name}_{date}"
+        if job_name not in active_jobs:
+            continue  
+        found_active = True
 
-                await update.message.reply_text(
-                    text=f"📌 Aktiv signal:\n{results_signal_text}",
-                    reply_markup=reply_markup,
-                    parse_mode='Markdown'
-                )
-                await asyncio.sleep(1)
+        results_signal_text = (
+            f"✈️ {route[0]} → {route[1]}\n"
+            f"📅 Date: {date}\n"
+            f"💺 Tariff: {class_name}\n"
+            f"💬 Comment: {comment}"
+        )
 
-        if not found_active:
-            await update.message.reply_text("❌ Faol aviaparvoz signal topilmadi.")
-    else:
-        await update.message.reply_text("❌ Siz bu botdan foydalana olmaysiz.")
+        reply_markup = keyboards.signal_keyboard(
+            class_name=class_name, 
+            date=date, 
+            route_key=route_key
+        )
 
+        await update.message.reply_text(
+            text=f"📌 Active signal:\n{results_signal_text}",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        await asyncio.sleep(1)
+
+    if not found_active:
+        await update.message.reply_text("❌ No active signals found.")
 
 async def restart_active_signals(application):
     airwaydb = db.AirwayDB()
