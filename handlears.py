@@ -262,7 +262,7 @@ async def add_comment_signal(update: Update, context: CallbackContext):
     flight_number = context.user_data.get('flight_number')
 
     job_queue.run_repeating(
-        send_signal_job, interval=1*60, first=0, name=job_name,
+        send_signal_job, interval=3*60, first=0, name=job_name,
         data={
             "chat_id": chat_id,
             "from_city": context.user_data['from_city'],
