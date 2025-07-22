@@ -34,7 +34,7 @@ class FlightParser:
             return False
                 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
+            browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
             await page.goto(base_url, wait_until="networkidle", timeout=60000)
             redirect_url = page.url.split('?')[0].split('/')[-1]
@@ -257,7 +257,7 @@ class FlightParser:
             missing_by_flight[flight_number] = sorted(missing)
         if self.file_path and os.path.exists(self.file_path):
             os.remove(self.file_path)
-            
+
         return missing_by_flight
 
 
