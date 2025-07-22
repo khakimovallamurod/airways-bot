@@ -6,6 +6,8 @@ import os
 from playwright.async_api import async_playwright
 from datetime import datetime
 import hashlib
+from collections import defaultdict
+import re
 
 class FlightParser:
     all_possible_classes = {'R', 'P', 'L', 'U', 'S', 'O', 'V', 'T', 'K', 'M', 'B', 'Y', 'I', 'D', 'C'}
@@ -32,7 +34,7 @@ class FlightParser:
             return False
                 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=False)
             page = await browser.new_page()
             await page.goto(base_url, wait_until="networkidle", timeout=60000)
             redirect_url = page.url.split('?')[0].split('/')[-1]
@@ -178,7 +180,7 @@ class FlightParser:
                             'departure_time': span.get_text(strip=True).split()[0]
                         }
                         flights.append(flight_data)
-            
+
             flight_time_area2 = self.soup.find('div', id='OW2time_form')
             if flight_time_area2 and flight_time_area2.text.strip():
                 labels = flight_time_area2.find_all('label')
@@ -190,38 +192,75 @@ class FlightParser:
                             'departure_time': span.get_text(strip=True).split()[0]
                         }
                         flights.append(flight_data)
-                        
+
         except Exception as e:
             print(f"[Xatolik] Reyslar ro'yxatini olishda: {e}")
             return []
-        
         return flights
-    
-    async def find_missing_classes(self) -> dict:
-        """Har bir reys uchun yo'qolgan klasslarni aniqlaydi"""
+
+    async def find_missing_classes(self):
         if not await self.load_file():
-            return {}
+            return False
+        all_economy_classes = set("B C D I K L M O P R S T U V Y".split())
+        found_classes_by_flight = defaultdict(set)
 
-        flights = self.get_flights_list()
-        missing_classes_dict = {}
+        script = self.soup.find('script', string=re.compile(r'window\.flightinfo\s*=\s*{'))
+        if not script:
+            raise ValueError("⚠️ window.flightinfo boshlanmayapti!")
 
-        for flight in flights:
-            flight_number = flight['flight_number']  
-            found_classes = set()
+        flight_number_map = {}  
+        for match in re.finditer(r'"(\d{6})":\s*{\s*"OW":\s*{[^}]*?"flight":"(\d+)"', script.string):
+            html_key, flight_number = match.groups()
+            flight_number_map[html_key] = flight_number
 
-            spans = self.soup.find_all('span', class_='modal-top-right-text')
-            for span in spans:
-                text = span.get_text(strip=True)
+        if not flight_number_map:
+            raise ValueError("⚠️ window.flightinfo JSON parchasi ajratilmadi!")
+
+        for tariff_block in self.soup.select('div.tariff-col'):
+            class_list = tariff_block.get('class', [])
+            html_key = next((cls for cls in class_list if cls.isdigit()), None)
+            if not html_key or html_key not in flight_number_map:
+                continue
+
+            flight_number = flight_number_map[html_key]
+
+            fines_btn = tariff_block.select_one('.tariff-fines')
+            if not fines_btn:
+                continue
+
+            onclick = fines_btn.get('onclick', '')
+            match = re.search(r"showpenaltymodal\('([^']+)'\)", onclick)
+            if not match:
+                continue
+
+            modal_id = f'penalty{match.group(1)}'
+            modal = self.soup.find('div', id=modal_id)
+            if not modal:
+                continue
+
+            span = modal.find('span', class_='modal-top-right-text')
+            if not span:
+                continue
+
+            text = span.get_text(strip=True)
+            if text.lower().startswith('iqtisodiy'):
                 parts = text.split()
-                if len(parts) >= 2:
-                    class_letter = parts[-1]
-                    if class_letter in self.all_possible_classes:
-                        found_classes.add(class_letter)
+                if len(parts) > 1:
+                    class_code = parts[-1]
+                    if class_code in all_economy_classes:
+                        found_classes_by_flight[flight_number].add(class_code)
 
-            missing = sorted(self.all_possible_classes - found_classes)
-            missing_classes_dict[flight_number] = missing
+        missing_by_flight = {}
+        for html_key, flight_number in flight_number_map.items():
+            found = found_classes_by_flight.get(flight_number, set())
+            missing = all_economy_classes - found
+            missing_by_flight[flight_number] = sorted(missing)
+        if self.file_path and os.path.exists(self.file_path):
+            os.remove(self.file_path)
+            
+        return missing_by_flight
 
-        return missing_classes_dict
+
     
     async def run(self, class_name: str, flight_number: str = None) -> list:
         self.class_name = class_name
@@ -241,12 +280,12 @@ if __name__ == '__main__':
         parser = FlightParser(
             from_city='TAS',
             to_city='UGC',
-            date='2025-08-01',
+            date='2025-09-10',
         )
-        # missing = await parser.find_missing_classes()
-        # print(missing)
-        result = await (parser.run(class_name=["M", "O"]))
-        print(result)
-        with open('result.json', 'w', encoding='utf-8') as f:
-            json.dump(result, f, ensure_ascii=False, indent=4)
+        missing = await parser.find_missing_classes()
+        print(missing)
+        # result = await (parser.run(class_name=["M", "O"]))
+        # print(result)
+        # with open('result.json', 'w', encoding='utf-8') as f:
+        #     json.dump(result, f, ensure_ascii=False, indent=4)
     asyncio.run(main())
