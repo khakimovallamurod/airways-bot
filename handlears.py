@@ -14,7 +14,7 @@ FROM_CITY, TO_CITY, DATE, FL_NUM, SELECT, ADD_COMMENT = range(6)
 ID_START = range(1)
 
 async def start(update: Update, context: CallbackContext):
-    user = update.message.from_user
+    user = update.message.chat
     airwaydb = db.AirwayDB()
 
     chat_id = user.id
@@ -35,7 +35,7 @@ async def admin_start(update: Update, context: CallbackContext):
 async def insert_admin(update: Update, context: CallbackContext):
     airwaydb = db.AirwayDB()
     id_text = update.message.text
-    chat_id = str(update.message.from_user.id)
+    chat_id = str(update.message.chat.id)
 
     if chat_id in USER_IDS:
         if airwaydb.add_admin(id_text):
@@ -64,7 +64,7 @@ async def insert_admin(update: Update, context: CallbackContext):
 
 async def airway_start(update: Update, context: CallbackContext):
     airwaydb = db.AirwayDB()
-    chat_id = update.message.from_user.id
+    chat_id = update.message.chat.id
 
     if airwaydb.check_admin(chat_id):
         msg = await update.message.reply_text("Flight selection has started!!!")
@@ -83,7 +83,7 @@ async def safe_delete_message(bot, chat_id, message_id):
 
 async def get_from_city(update: Update, context: CallbackContext):
     if "last_message" in context.user_data:
-        await safe_delete_message(context.bot, update.message.chat_id, context.user_data["last_message"])
+        await safe_delete_message(context.bot, update.message.chat.id, context.user_data["last_message"])
 
     if update.callback_query:
         query = update.callback_query
