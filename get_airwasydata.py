@@ -10,7 +10,7 @@ from collections import defaultdict
 import re
 
 class FlightParser:
-    all_possible_classes = {'R', 'P', 'L', 'U', 'S', 'O', 'V', 'T', 'K', 'M', 'B', 'Y', 'I', 'D', 'C'}
+    all_possible_classes = ['R', 'P', 'L', 'U', 'S', 'O', 'V', 'T', 'K', 'M', 'B', 'Y', 'I', 'D', 'C']
 
     def __init__(self, from_city, to_city, date):
         self.file_path = None
