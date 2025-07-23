@@ -16,7 +16,7 @@ ID_START = range(1)
 async def start(update: Update, context: CallbackContext):
     user = update.message.chat
     airwaydb = db.AirwayDB()
-
+    print(user.id)
     chat_id = user.id
     if airwaydb.check_admin(chat_id):
         await update.message.reply_text(
@@ -152,10 +152,17 @@ async def to_city_selected(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
     context.user_data['to_city'] = query.data
-    if query.message:
+
+    try:
         await query.message.delete()
-        
-    await query.message.reply_text("📅 Please enter the date in the format YYYY-MM-DD (e.g., 2025-07-21):")
+    except Exception as e:
+        print(f"Xatolik (delete_message): {e}")
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="📅 Please enter the date in the format YYYY-MM-DD (e.g., 2025-07-21):"
+    )
+
     return DATE
 
 async def get_filghts_selected(update: Update, context: CallbackContext):
