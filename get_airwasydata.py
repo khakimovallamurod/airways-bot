@@ -55,8 +55,7 @@ class FlightParser:
         with open(self.file_path, 'r', encoding='utf-8') as file:
             self.html_content = file.read()
         self.soup = BeautifulSoup(self.html_content, 'html.parser')
-        if os.path.exists(self.file_path):
-            os.remove(self.file_path)
+        
         return True
     
     def extract_flight_info(self):

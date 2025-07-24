@@ -6,7 +6,7 @@ import db
 import time
 import get_airwasydata
 from telegram import ReplyKeyboardRemove
-
+import os
 
 USER_IDS = ['6889331565', '608913545', '1383186462']
 
@@ -303,7 +303,11 @@ async def send_signal_job(context: CallbackContext):
     )
 
     parser_results = await parser.run(class_name=class_names, flight_number=flight_number)  
-
+    folder = "results"
+    for filename in os.listdir(folder):
+        file_path = os.path.join(folder, filename)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
     route_key = f'{stationFromCode}_{stationToCode}'
 
     if not parser_results:
