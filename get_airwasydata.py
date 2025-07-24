@@ -48,11 +48,15 @@ class FlightParser:
         return True
 
     async def load_file(self):
-        if not await self.load_browser():
+        load_browser = await self.load_browser()
+        if not load_browser:
             return False
+        
         with open(self.file_path, 'r', encoding='utf-8') as file:
             self.html_content = file.read()
         self.soup = BeautifulSoup(self.html_content, 'html.parser')
+        if os.path.exists(self.file_path):
+            os.remove(self.file_path)
         return True
     
     def extract_flight_info(self):
@@ -158,8 +162,7 @@ class FlightParser:
                     'available_seats': seats
                 })
 
-        if self.file_path and os.path.exists(self.file_path):
-            os.remove(self.file_path)
+        
         print(results)
         return results
 

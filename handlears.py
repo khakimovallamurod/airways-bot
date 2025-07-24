@@ -428,7 +428,6 @@ async def view_actives(update: Update, context: CallbackContext):
     """📋 Faol aviaparvoz signallarini ko‘rsatish (multi-class formatda)"""
     chat_id = update.message.chat.id
     airwayobj = db.AirwayDB()
-    print(f"User {chat_id} requested active signals.")
     if not airwayobj.check_admin(chat_id):
         await update.message.reply_text("❌ You are not authorized to view active signals.")
         return
