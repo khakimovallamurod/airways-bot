@@ -50,7 +50,7 @@ class AirwayDB:
         
     def data_insert(self, data):
         if data.get('route') != None:
-            route_key = f'{data['stationFromCode']}_{data['stationToCode']}'
+            route_key = f"{data['stationFromCode']}_{data['stationToCode']}"
             raw_id = f"{data['chat_id']}_{data['class_name']}_{data['date']}_{route_key}"
             doc_id = self.generate_doc_id(raw_id)
             data_one = Document(data, doc_id=doc_id)
@@ -82,7 +82,10 @@ class AirwayDB:
         if self.table.get(doc_id=doc_id) == None:
             return True
         return False
-    def get_actives(self):
-
-        active_data = self.table.search(self.query.active == True)
-        return active_data
+    
+    def get_actives(self, chat_id = None):
+        if chat_id == None:
+            return self.table.search(self.query.active == True)
+        return self.table.search(
+            (self.query.active == True) & (self.query.chat_id == chat_id)
+        )

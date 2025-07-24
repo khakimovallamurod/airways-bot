@@ -428,12 +428,12 @@ async def view_actives(update: Update, context: CallbackContext):
     """📋 Faol aviaparvoz signallarini ko‘rsatish (multi-class formatda)"""
     chat_id = update.message.chat.id
     airwayobj = db.AirwayDB()
-
+    print(f"User {chat_id} requested active signals.")
     if not airwayobj.check_admin(chat_id):
         await update.message.reply_text("❌ You are not authorized to view active signals.")
         return
 
-    actives_data = airwayobj.get_actives()
+    actives_data = airwayobj.get_actives(chat_id=chat_id)
     if not actives_data:
         await update.message.reply_text("❌ No active signals found.")
         return
@@ -462,7 +462,6 @@ async def view_actives(update: Update, context: CallbackContext):
             f"💺 Tariff: {class_name}\n"
             f"💬 Comment: {comment}"
         )
-
         reply_markup = keyboards.signal_keyboard(
             class_name=class_name, 
             date=date, 

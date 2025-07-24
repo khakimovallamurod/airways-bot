@@ -50,7 +50,6 @@ class FlightParser:
     async def load_file(self):
         if not await self.load_browser():
             return False
-
         with open(self.file_path, 'r', encoding='utf-8') as file:
             self.html_content = file.read()
         self.soup = BeautifulSoup(self.html_content, 'html.parser')
@@ -264,7 +263,8 @@ class FlightParser:
     
     async def run(self, class_name: str, flight_number: str = None) -> list:
         self.class_name = class_name
-        if not await self.load_file():
+        load = await self.load_file()
+        if not load:
             return False
 
         flight_info = self.extract_flight_info()
