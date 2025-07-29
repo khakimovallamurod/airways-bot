@@ -38,7 +38,8 @@ def main():
             ],
         },
         fallbacks=[CommandHandler("cancel", handlears.cancel)],
-        per_message=False
+        per_message=False,
+        allow_reentry=True
     )
 
     admin_handler = ConversationHandler(
