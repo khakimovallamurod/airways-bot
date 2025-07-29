@@ -34,7 +34,7 @@ class FlightParser:
             return False
                 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=False)
             page = await browser.new_page()
             await page.goto(base_url, wait_until="networkidle", timeout=60000)
             redirect_url = page.url.split('?')[0].split('/')[-1]
@@ -82,30 +82,42 @@ class FlightParser:
 
     def parse_tariffs(self, flight_number=None):
         results = []
-
         flight_map = {}
+        
         for span in self.soup.select('#OWtime_form .timeowglobalclass'):
             code = span.get('data-time')
             number = span.find('span', class_='flight-data')
             if number:
                 flight_map[code] = "HY " + number.get_text(strip=True)
-
+        
+        flight_info_data = {}
+        script_tags = self.soup.find_all('script')
+        for script in script_tags:
+            if script.string and 'window.flightinfo' in script.string:
+                import re
+                match = re.search(r'window\.flightinfo\s*=\s*({.*?});', script.string, re.DOTALL)
+                if match:
+                    try:
+                        js_data = match.group(1)
+                        js_data = js_data.replace('true', 'True').replace('false', 'False')
+                        flight_info_data = eval(js_data)
+                    except:
+                        continue
+        
         modal_spans = self.soup.find_all('span', class_='modal-top-right-text')
-
         for span in modal_spans:
             full_tariff_class = span.get_text(strip=True) 
             parts = full_tariff_class.strip().split()
             if len(parts) < 2:
                 continue
-
             tariff_type = parts[0]
             class_letter = parts[1].upper()
-
+            
             if tariff_type.lower() != 'iqtisodiy':
                 continue
             if class_letter not in [c.upper() for c in self.class_name]:
                 continue
-
+                
             modal_window = span.find_parent('div', class_='modal-window')
             if not modal_window:
                 continue
@@ -113,26 +125,44 @@ class FlightParser:
             if not modal_id.startswith('penalty'):
                 continue
             tariff_id = modal_id.replace('penalty', '')
-
+            
+            refund_fee = 'Noma\'lum'
+            refund_currency = 'UZS'
+            features = modal_window.find_all('div', class_='tariff-feature')
+            for feature in features:
+                feature_text = feature.get_text(strip=True)
+                if 'Aviachiptani qaytarish' in feature_text and 'keyin' not in feature_text:
+                    next_div = feature.find_next_sibling('div', class_='tariff-feature-details')
+                    if next_div:
+                        fee_text = next_div.get_text(strip=True)
+                        fee_match = re.search(r'(\d[\d\s]*)\s*(UZS|USD)', fee_text)
+                        if fee_match:
+                            refund_fee = fee_match.group(1).replace(" ", "")
+                            refund_currency = fee_match.group(2)
+                            break
+                        elif 'ushlab qolinadi' in fee_text or 'qaytarilmaydi' in fee_text:
+                            refund_fee = 'Qaytarilmaydi'
+                            break
+            
             for col in self.soup.find_all('div', class_='tariff-col'):
                 link = col.find('a', href=lambda x: x and tariff_id in x)
                 if not link:
                     continue
-
+                    
                 col_classes = col.get('class', [])
                 flight_code = next((cls for cls in col_classes if cls in flight_map), None)
                 if not flight_code:
                     continue
+                    
                 selected_flight_number = flight_map[flight_code]
-
                 if flight_number and selected_flight_number != flight_number:
                     continue
-
+                    
                 features = col.find_all('div', class_='tariff-feature')
                 has_refund = any("Qaytarish bilan" in f.get_text(strip=True) for f in features)
                 if not has_refund:
                     continue
-
+                    
                 price_div = col.find('div', class_='tariff-price')
                 if not price_div:
                     continue
@@ -143,13 +173,15 @@ class FlightParser:
                 price = price_match.group(1).replace(" ", "")
                 currency_div = price_div.find('div', class_='price-currency')
                 currency = currency_div.get_text(strip=True) if currency_div else 'UZS'
-
+                
                 seat_span = col.find('span', class_='tariff-left-places')
                 seats = seat_span.get_text(strip=True) if seat_span else 'Nomaʼlum'
-
-                results.append({
+                
+                js_flight_data = flight_info_data.get(flight_code, {}).get('OW', {})
+                
+                result = {
                     'route': f"{self.flight_info.get('from')} -> {self.flight_info.get('to')}",
-                    'flight_number': flight_number,
+                    'flight_number': selected_flight_number,
                     'departure_time': self.flight_info.get('departure_time'),
                     'arrival_time': self.flight_info.get('arrival_time'),
                     'date': self.flight_info.get('departure_date'),
@@ -158,11 +190,22 @@ class FlightParser:
                     'tariff_class': class_letter,
                     'price': price,
                     'currency': currency,
-                    'available_seats': seats
-                })
-
+                    'available_seats': seats,
+                    'refund_fee': refund_fee,
+                    'refund_currency': refund_currency
+                }
+                if js_flight_data:
+                    result.update({
+                        'route': f"{js_flight_data.get('from_name', result['route'].split(' -> ')[0])} -> {js_flight_data.get('to_name', result['route'].split(' -> ')[1])}",
+                        'departure_time': js_flight_data.get('deptime', result['departure_time']),
+                        'arrival_time': js_flight_data.get('arrtime', result['arrival_time']),
+                        'date': js_flight_data.get('depdate', result['date']),
+                        'airplane': js_flight_data.get('board_name', result['airplane'])
+                    })
+                
+                results.append(result)
+        
         return results
-
     
     def get_flights_list(self):
         """Berilgan sanadagi barcha reyslarni qaytaradi"""
