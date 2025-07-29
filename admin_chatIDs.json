@@ -1,31 +1,8 @@
 {
     "AdminTokens": {
         "1": {
-            "chat_id": "5gzN2UDNzITM"
-        },
-        "2": {
-            "chat_id": "==QN2UTMzMTO4gjN"
-        },
-        "3": {
-            "chat_id": "==gM2QjN4EzM4MTM"
-        },
-        "4": {
-            "chat_id": "1QTNzETO4AjN"
-        },
-        "5": {
-            "chat_id": "2QjN5MzNygDN"
-        },
-        "6": {
-            "chat_id": "yADNxEzM4ATM"
-        },
-        "7": {
-            "chat_id": "3YDN1cDM0ETM"
-        },
-        "8": {
-            "chat_id": "=ITM1IzN5cDN3IDMwETL"
-        },
-        "9": {
-            "chat_id": "=kjMwUTO0UzN5EDMwETL"
+            "chat_id": "==gM2QjN4EzM4MTM",
+            "account_name": "Allamurod"
         }
     }
 }

@@ -11,12 +11,12 @@ import os
 USER_IDS = ['6889331565', '608913545', '1383186462']
 
 FROM_CITY, TO_CITY, DATE, FL_NUM, SELECT, ADD_COMMENT = range(6)
-ID_START = range(1)
+ACCOUNT_NAME, ID_START = range(2)
+REMOVE_ID = range(1)
 
 async def start(update: Update, context: CallbackContext):
     user = update.message.chat
     airwaydb = db.AirwayDB()
-    print(user.id)
     chat_id = user.id
     if airwaydb.check_admin(chat_id):
         await update.message.reply_text(
@@ -29,18 +29,23 @@ async def start(update: Update, context: CallbackContext):
 
 
 async def admin_start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Please send the user IDs.")
+    await update.message.reply_text("Please send the user Name.")
+    return ACCOUNT_NAME
+
+async def admin_name(update: Update, context: CallbackContext):
+    context.user_data['admin_name'] = update.message.text.capitalize()
+    await update.message.reply_text("Please send the user ID.")
     return ID_START
 
 async def insert_admin(update: Update, context: CallbackContext):
     airwaydb = db.AirwayDB()
     id_text = update.message.text
     chat_id = str(update.message.chat.id)
-
+    acount_name = context.user_data['admin_name'] 
     if chat_id in USER_IDS:
-        if airwaydb.add_admin(id_text):
+        if airwaydb.add_admin(chat_id=id_text, fio=acount_name):
             await update.message.reply_text(
-                f"✅ User successfully added to the admin list!\nID: {id_text}"
+                f"✅ User successfully added to the admin list!\nAdmin: {acount_name}"
             )
             try:
                 await context.bot.send_message(
@@ -60,6 +65,38 @@ async def insert_admin(update: Update, context: CallbackContext):
         )
 
     return ConversationHandler.END
+
+async def view_all_admin(update: Update, context: CallbackContext):
+    airwaydb = db.AirwayDB()
+    chat_id = update.effective_chat.id
+    if str(chat_id) in USER_IDS:
+        admin_list = airwaydb.view_admins()
+        admin_texts = ""
+        for admin in admin_list:
+            admin_texts += f"{admin['account_name']} ----- {admin['chat_id']}\n"
+        await update.message.reply_text(admin_texts)
+    else:
+        await update.message.reply_text("⛔ You can't see admin lists")
+
+async def remove_start(update: Update, context: CallbackContext):
+    
+    await update.message.reply_text("Please send the ID to delete the user.")
+    return REMOVE_ID
+
+async def remove_admin(update: Update, context: CallbackContext):
+    airwaydb = db.AirwayDB()
+    chat_id = update.effective_chat.id
+    delet_id = update.message.text
+    if str(chat_id) in USER_IDS:
+        if airwaydb.delete_admin(delet_id):
+            await update.message.reply_text("✅ This user was removed from the list")
+            return ConversationHandler.END
+        else:
+            await update.message.reply_text("⚠️ This user doesn't exist")
+            return ConversationHandler.END
+    else:
+        await update.message.reply_text("⛔ You can't delete user")
+        return ConversationHandler.END
 
 
 async def airway_start(update: Update, context: CallbackContext):
@@ -174,19 +211,20 @@ async def get_filghts_selected(update: Update, context: CallbackContext):
     if not airwaydb.is_valid_date(date):
         await update.message.reply_text("📅 You entered the date in the wrong format, please try again!")
         return DATE
-
+    from_city = context.user_data['from_city'].split(':')[1]
+    to_city = context.user_data['to_city'].split(':')[1]
     parser = get_airwasydata.FlightParser(
-        from_city=context.user_data['from_city'].split(':')[1],
-        to_city=context.user_data['to_city'].split(':')[1],
+        from_city=from_city,
+        to_city=to_city,
         date=context.user_data['date'],
         )
     
     flights: dict = await parser.find_missing_classes()
     await waiting_message.delete()
+    more_flights = airwaydb.get_flights_between_cities(from_city, to_city, flights)
+    if flights != {} or more_flights != {}:
 
-    if flights != {}:
-
-        await update.message.reply_text("Select a flight number:", reply_markup=keyboards.select_flight_button(flights))
+        await update.message.reply_text("Select a flight number:", reply_markup=keyboards.select_flight_button(flights, more_flights))
         return FL_NUM
     else:
 
@@ -304,10 +342,13 @@ async def send_signal_job(context: CallbackContext):
 
     parser_results = await parser.run(class_name=class_names, flight_number=flight_number)  
     folder = "results"
-    for filename in os.listdir(folder):
-        file_path = os.path.join(folder, filename)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
+    if os.path.exists(folder) and os.path.isdir(folder):
+        files = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
+        if len(files) > 20:
+            for filename in files:
+                file_path = os.path.join(folder, filename)
+                os.remove(file_path)
+                
     route_key = f'{stationFromCode}_{stationToCode}'
 
     if not parser_results:
@@ -327,7 +368,7 @@ async def send_signal_job(context: CallbackContext):
         return
 
     for class_name in class_names:
-        matching_tariffs = [t for t in parser_results if t['tariff_class'].endswith(f" {class_name}")]
+        matching_tariffs = [t for t in parser_results if t['tariff_class'] == class_name]
         if not matching_tariffs:
             obj.data_insert(data={
                 'chat_id': chat_id,
@@ -366,7 +407,8 @@ async def send_signal_job(context: CallbackContext):
             f"🛩️ Aircraft: {data['airplane']}\n"
             f"💺 Tariff: {data['tariff_type']} ({data['tariff_class']})\n"
             f"📦 Available Seats: {data.get('available_seats', 'Unknown')}\n"
-            f"💰 Price: {data['price']} {data['currency']}"
+            f"💰 Price: {data['price']} {data['currency']}\n"
+            f"🔁 Air ticket refund: {int(data['refund_fee'])/10000} {data['refund_currency']}"
         )
 
         reply_markup = keyboards.signal_keyboard(class_name, date=date, route_key=route_key)

@@ -22,13 +22,34 @@ class AirwayDB:
         decoded = base64.b64decode(reversed_text.encode()).decode()
         return decoded
 
-    def add_admin(self, chat_id):
+    def add_admin(self, chat_id, fio):
         enc_id = self.simple_encrypt(str(chat_id))
         if not self.check_admin(chat_id):
-            self.admintable.insert({'chat_id': enc_id})
+            self.admintable.insert({'chat_id': enc_id, "account_name": fio})
             return True
         else :
             return False
+    
+    def delete_admin(self, chat_id):
+        enc_id = self.simple_encrypt(str(chat_id))
+        if self.check_admin(chat_id):
+            self.admintable.remove(self.query.chat_id == enc_id)
+            return True
+        else:
+            return False
+
+    def view_admins(self):
+        all_chat_ids = self.admintable.all()
+        all_admins = []
+        for admin in all_chat_ids:
+            decode_id = self.simple_decrypt(admin['chat_id'])
+            all_admins.append(
+                {
+                    'chat_id':decode_id,
+                    'account_name': admin['account_name']
+                }
+            )
+        return all_admins
 
     def check_admin(self, chat_id):
         enc_id = self.simple_encrypt(str(chat_id))
@@ -68,7 +89,7 @@ class AirwayDB:
         
         hash_str = hashlib.md5(doc_id.encode()).hexdigest()
         int_hash = int(hash_str, 16)
-        octal_hash = int(oct(int_hash)[2:])  # 8-likka o‘tkazamiz (string oldidan "0o" olib tashlaymiz)
+        octal_hash = int(oct(int_hash)[2:])  
         return octal_hash
     
     def update_signal(self, doc_id):
@@ -89,3 +110,48 @@ class AirwayDB:
         return self.table.search(
             (self.query.active == True) & (self.query.chat_id == chat_id)
         )
+    def get_flights_between_cities(self, from_code, to_code, missing_flights):
+    
+        flight_data = {
+        "SKD": {
+            "TAS": ["41", "43", "45"]
+        },
+        "UGC": {
+            "TAS": ["51", "53", "55", "57", "61", "62"]
+        },
+        "NMA": {
+            "TAS": ["93", "94"]
+        },
+        "FEG": {
+            "TAS": ["85", "81"]
+        },
+        "BHK": {
+            "TAS": ["61", "21", "22"]
+        },
+        "TMJ": {
+            "TAS": ["69", "70"]
+        },
+        "NCU": {
+            "TAS": ["11", "13", "15", "17", "12"]
+        },
+        "KSQ": {
+            "TAS": ["72", "21"]
+        },
+        "TAS": {
+            "SKD": ["42", "44", "46"],
+            "UGC": ["51","52", "53", "54", "55", "56", "57", "58", "61", "62"],
+            "NMA": ["94", "93"],
+            "FEG": ["82", "86"],
+            "BHK": ["21"],
+            "TMJ": ["70", "69"],
+            "NCU": ["12", "16", "18", "14"],
+            "KSQ": ["21", "72"]
+        }
+        }
+
+        flight_numbers = flight_data.get(from_code, {}).get(to_code, {})
+        filtered_flights = [num for num in flight_numbers if num not in missing_flights]
+        default_missing_seats = ['B', 'C', 'D', 'I', 'K', 'L', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'Y']
+        result = {fn: default_missing_seats for fn in filtered_flights}
+        return result
+

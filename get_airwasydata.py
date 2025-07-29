@@ -161,8 +161,6 @@ class FlightParser:
                     'available_seats': seats
                 })
 
-        
-        print(results)
         return results
 
     

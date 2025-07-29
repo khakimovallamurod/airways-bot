@@ -62,16 +62,18 @@ def select_class_button(selected_classes, class_names):
 
     return InlineKeyboardMarkup(keyboard_btn)
 
-
-
-
-def select_flight_button(flights: dict):
+def select_flight_button(flights: dict, more_flights: dict):
     keyboard_btns = []
     custom_order = ['R', 'P', 'L', 'U', 'S', 'O', 'V', 'T', 'K', 'M', 'B', 'Y', 'I', 'D', 'C']
     for number, classes in flights.items():
         sorted_classes = sorted(classes, key=lambda x: custom_order.index(x))
         classes_text = '_'.join(sorted_classes)
-        button = InlineKeyboardButton(text=f"HY {number}", callback_data=f'{number}:{classes_text}')
+        button = InlineKeyboardButton(text=f"❇️ HY {number}", callback_data=f'{number}:{classes_text}')
+        keyboard_btns.append([button]) 
+    for number, classes in more_flights.items():
+        sorted_classes = sorted(classes, key=lambda x: custom_order.index(x))
+        classes_text = '_'.join(sorted_classes)
+        button = InlineKeyboardButton(text=f"✴️ HY {number}", callback_data=f'{number}:{classes_text}')
         keyboard_btns.append([button]) 
         
     return InlineKeyboardMarkup(keyboard_btns)

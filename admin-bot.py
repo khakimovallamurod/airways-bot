@@ -44,14 +44,24 @@ def main():
     admin_handler = ConversationHandler(
         entry_points=[CommandHandler('addadmin', handlears.admin_start)],
         states={
+            handlears.ACCOUNT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.admin_name)],
             handlears.ID_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.insert_admin)]
         },
         fallbacks=[CommandHandler("cancel", handlears.cancel)],
         per_message=False
     )
-
+    remove_handler = ConversationHandler(
+        entry_points=[CommandHandler('remove_admin', handlears.remove_start)],
+        states={
+            handlears.REMOVE_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.remove_admin)],
+        },
+        fallbacks=[CommandHandler("cancel", handlears.cancel)],
+        per_message=False
+    )
     dp.add_handler(conv_handler)
     dp.add_handler(admin_handler)
+    dp.add_handler(remove_handler)
+    dp.add_handler(CommandHandler('viewadmins', handlears.view_all_admin))
     dp.add_handler(CommandHandler('viewactives', handlears.view_actives))
     dp.add_handler(CallbackQueryHandler(handlears.stop_signal, pattern="stop_signal"))
 
