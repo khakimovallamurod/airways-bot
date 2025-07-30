@@ -15,7 +15,11 @@ def get_viloyats():
         "Navoiy": "NVI",
         "Qarshi": "KSQ",
         "Bishkek": "FRU",
-        "Boku": "GYD"
+        "Boku": "GYD",
+        "Dehli":"DEL",
+        "Almati":"ALA",
+        "Dushanbe":"DYU",
+        "Dubay":"DXB"
     }
     keyboards_btns = []
     row = []
