@@ -49,7 +49,8 @@ def main():
             handlears.ID_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.insert_admin)]
         },
         fallbacks=[CommandHandler("cancel", handlears.cancel)],
-        per_message=False
+        per_message=False,
+        allow_reentry=True
     )
     remove_handler = ConversationHandler(
         entry_points=[CommandHandler('remove_admin', handlears.remove_start)],
@@ -57,7 +58,8 @@ def main():
             handlears.REMOVE_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.remove_admin)],
         },
         fallbacks=[CommandHandler("cancel", handlears.cancel)],
-        per_message=False
+        per_message=False,
+        allow_reentry=True
     )
     dp.add_handler(conv_handler)
     dp.add_handler(admin_handler)

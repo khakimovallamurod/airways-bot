@@ -114,7 +114,8 @@ class AirwayDB:
     
         flight_data = {
         "SKD": {
-            "TAS": ["41", "43", "45"]
+            "TAS": ["41", "43", "45"],
+            "BHK": ['52', '41', '22', '45', '56', '62']
         },
         "UGC": {
             "TAS": ["51", "53", "55", "57", "61", "62"]
@@ -126,7 +127,8 @@ class AirwayDB:
             "TAS": ["85", "81"]
         },
         "BHK": {
-            "TAS": ["61", "21", "22"]
+            "TAS": ["61", "21", "22"],
+            "SKD": ['52', '41', '22', '45', '56', '62']
         },
         "TMJ": {
             "TAS": ["69", "70"]
@@ -148,10 +150,11 @@ class AirwayDB:
             "KSQ": ["21", "72"]
         }
         }
-
+    
         flight_numbers = flight_data.get(from_code, {}).get(to_code, {})
         filtered_flights = [num for num in flight_numbers if num not in missing_flights]
         default_missing_seats = ['B', 'C', 'D', 'I', 'K', 'L', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'Y']
         result = {fn: default_missing_seats for fn in filtered_flights}
         return result
+
 
