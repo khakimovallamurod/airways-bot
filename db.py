@@ -153,7 +153,7 @@ class AirwayDB:
     
         flight_numbers = flight_data.get(from_code, {}).get(to_code, {})
         filtered_flights = [num for num in flight_numbers if num not in missing_flights]
-        default_missing_seats = ['B', 'C', 'D', 'I', 'K', 'L', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'Y']
+        default_missing_seats = ['B', 'C', 'D', 'I', 'K', 'L', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'Y', 'M']
         result = {fn: default_missing_seats for fn in filtered_flights}
         return result
 
