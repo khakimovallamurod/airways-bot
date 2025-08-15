@@ -19,7 +19,9 @@ def get_viloyats():
         "Dehli":"DEL",
         "Almati":"ALA",
         "Dushanbe":"DYU",
-        "Dubay":"DXB"
+        "Dubay":"DXB",
+        "Jon Kennedi aeroporti Nyu-York":"JFK",
+        "Tel-Aviv":"TLV"
     }
     keyboards_btns = []
     row = []
