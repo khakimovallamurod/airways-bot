@@ -45,7 +45,7 @@ class FlightParser:
             return False
                 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
+            browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
             await page.goto(base_url, wait_until="domcontentloaded", timeout=60000)
             await page.wait_for_load_state("networkidle", timeout=60000)

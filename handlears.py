@@ -8,7 +8,12 @@ import get_airwasydata
 from telegram import ReplyKeyboardRemove
 import os
 from collections import defaultdict, deque
+import random
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.jobstores.base import JobLookupError
 
+scheduler = AsyncIOScheduler()
 USER_IDS = ['6889331565', '608913545', '1383186462']
 
 FROM_CITY, TO_CITY, DATE, FL_NUM, SELECT, ADD_COMMENT = range(6)
@@ -264,7 +269,7 @@ async def select_class(update: Update, context: CallbackContext):
         if not selected:
             await query.edit_message_text("⚠️ Please select at least one class.")
             return SELECT
-
+        context.user_data['flight_number'] = context.user_data.get('flight_number_select')
         context.user_data['confirmed_classes'] = selected
         await query.edit_message_text(
             f"✅ Selected classes: {', '.join(selected)}\n\nWrite a comment:"
@@ -274,7 +279,7 @@ async def select_class(update: Update, context: CallbackContext):
     else:
         flight_number, class_str = data.split(':')
         classes = class_str.split('_')
-        context.user_data['flight_number'] = flight_number
+        context.user_data['flight_number_select'] = flight_number
         context.user_data['available_classes'] = classes
         context.user_data['selected_classes'] = []
 
@@ -283,6 +288,35 @@ async def select_class(update: Update, context: CallbackContext):
             reply_markup=keyboards.select_class_button([], classes)
         )
         return SELECT
+
+async def send_signal_job_wrapper(data: dict):
+    await send_signal_job(
+        None,
+        chat_id=data['chat_id'],
+        from_city=data['from_city'],
+        to_city=data['to_city'],
+        date=data['date'],
+        class_name=data['class_name'],
+        comment=data['comment'],
+        flight_number=data['flight_number']
+    )
+
+def start_signal_job(data: dict):
+    
+    job_name = f"signal_{data['chat_id']}_{'_'.join(data['class_name'])}_{data['date']}" 
+    if any(job.id == job_name for job in scheduler.get_jobs()):
+        return  
+    interval_num = random.randint(180, 200)
+    trigger = IntervalTrigger(seconds=interval_num) 
+
+    scheduler.add_job(
+        send_signal_job_wrapper,  
+        trigger=trigger,
+        id=job_name,
+        kwargs= {"data": data},
+        misfire_grace_time=5,
+        coalesce=True
+    )
 
 async def add_comment_signal(update: Update, context: CallbackContext):
     context.user_data['comment'] = update.message.text.strip()
@@ -314,6 +348,19 @@ async def add_comment_signal(update: Update, context: CallbackContext):
             'flight_number': context.user_data.get('flight_number')
         }
         obj.data_insert(data = add_for_data)
+    job_name = f"signal_{chat_id}_{'_'.join(class_names)}_{date}"    
+    existing_jobs = context.application.job_queue.get_jobs_by_name(job_name)
+    data = {
+        'chat_id': chat_id,
+        'from_city': context.user_data['from_city'],
+        'to_city': context.user_data['to_city'],
+        'date': date,
+        'class_name': class_names,
+        'comment': comment,
+        'flight_number': context.user_data.get('flight_number')
+    }
+    if not existing_jobs:
+        start_signal_job(data=data)
     return ConversationHandler.END
 
 chat_queues = defaultdict(deque)
@@ -417,17 +464,13 @@ async def stop_signal(update: Update, context: CallbackContext):
     _, route_key, class_name_to_remove, date = query.data.split(':')
     chat_id = query.message.chat.id
     obj = db.AirwayDB()
-    job_queue = context.application.job_queue if context.application else None
 
-    if not job_queue:
-        await query.message.reply_text("⚠️ Error: Job Queue not found.")
-        return
-
-    jobs = job_queue.jobs()
+    jobs = scheduler.get_jobs()
     target_job = None
-
+    job_classes = []
+    
     for job in jobs:
-        parts = job.name.split('_')
+        parts = job.id.split('_')  
         job_chat_id = parts[1]
         job_classes = parts[2:-1]
         job_date = parts[-1]
@@ -435,6 +478,7 @@ async def stop_signal(update: Update, context: CallbackContext):
         if str(chat_id) == job_chat_id and str(date) == job_date and class_name_to_remove in job_classes:
             target_job = job
             break
+
     if not target_job:
         await query.message.reply_text("⚠️ No active tracking found for this class.")
         return
@@ -454,10 +498,11 @@ async def stop_signal(update: Update, context: CallbackContext):
     if not active:
         await query.message.reply_text("ℹ️ This signal has already been stopped.")
         return
-    updated_classes = [c for c in job_classes if c != class_name_to_remove]
 
-    target_job.schedule_removal()
-    obj.update_signal(doc_id=doc_id)
+    scheduler.remove_job(target_job.id)
+    obj.update_signal(doc_id=doc_id)  
+
+    updated_classes = [c for c in job_classes if c != class_name_to_remove]
 
     results_signal_text = (
         f"✈️ {from_city} → {to_city}\n"
@@ -466,25 +511,28 @@ async def stop_signal(update: Update, context: CallbackContext):
         f"💺 Tariff: {class_name_to_remove}\n"
         f"💬 Comment: {comment}"
     )
+
     if updated_classes:
         new_job_name = f"signal_{chat_id}_{'_'.join(updated_classes)}_{date}"
         new_from_city = f"{from_city}:{signal_data.get('stationFromCode', '')}"
         new_to_city = f"{to_city}:{signal_data.get('stationToCode', '')}"
 
-        job_queue.run_repeating(
-            send_signal_job,
-            interval=3*60,
-            first=0,
-            name=new_job_name,
-            data={
-                "chat_id": chat_id,
-                "from_city": new_from_city,
-                "to_city": new_to_city,
-                "date": date,
-                "class_name": updated_classes,
-                "comment": comment,
-                "flight_number": flight_number
-            }
+        scheduler.add_job(
+            send_signal_job_wrapper,
+            trigger=IntervalTrigger(seconds=180),
+            id=new_job_name,
+            kwargs={
+                "data": {
+                    "chat_id": chat_id,
+                    "from_city": new_from_city,
+                    "to_city": new_to_city,
+                    "date": date,
+                    "class_name": updated_classes,
+                    "comment": comment,
+                    "flight_number": flight_number
+                }
+            },
+            replace_existing=True
         )
 
         await query.message.reply_text(
@@ -595,11 +643,10 @@ async def restart_active_signals(application):
 
     for data in results:
         job_name = f"signal_{data['chat_id']}_{'_'.join(data['class_name'])}_{data['date']}"
-
-        job_queue.run_repeating(
-            send_signal_job, interval=3*60, first=0, name=job_name,
-            data=data
-        )
+        current_jobs = application.job_queue.get_jobs_by_name(job_name)
+        if current_jobs:
+            continue
+        start_signal_job(data=data)
 
 
 async def cancel(update: Update, context: CallbackContext):
