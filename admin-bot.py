@@ -7,16 +7,16 @@ from config import get_token
 import handlears
 import asyncio
 
-async def start_jobs(dp):
-    job_queue = dp.job_queue
-    await job_queue.start()
-
-    await handlears.restart_active_signals(dp)
+async def setup_scheduler(app: Application):
+    """Bot ishga tushgandan keyin scheduler start qilinadi"""
+    handlears.scheduler.start()
+    
+    await handlears.restart_active_signals(app)
 
 def main():
     TOKEN = get_token()
 
-    dp = Application.builder().token(TOKEN).build()
+    dp = Application.builder().token(TOKEN).post_init(setup_scheduler).build()
 
     dp.add_handler(CommandHandler('start', handlears.start))
 
@@ -68,7 +68,6 @@ def main():
     dp.add_handler(CommandHandler('viewactives', handlears.view_actives))
     dp.add_handler(CallbackQueryHandler(handlears.stop_signal, pattern="stop_signal"))
 
-    asyncio.get_event_loop().run_until_complete(start_jobs(dp))
 
     dp.run_polling(allowed_updates=Update.ALL_TYPES, timeout=30)
 
