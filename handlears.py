@@ -350,17 +350,22 @@ async def add_comment_signal(update: Update, context: CallbackContext):
         obj.data_insert(data = add_for_data)
     job_name = f"signal_{chat_id}_{'_'.join(class_names)}_{date}"    
     existing_jobs = context.application.job_queue.get_jobs_by_name(job_name)
-    data = {
-        'chat_id': chat_id,
-        'from_city': context.user_data['from_city'],
-        'to_city': context.user_data['to_city'],
-        'date': date,
-        'class_name': class_names,
-        'comment': comment,
-        'flight_number': context.user_data.get('flight_number')
-    }
+    interval_num = random.randint(100, 130)
     if not existing_jobs:
-        start_signal_job(data=data)
+        job_queue = context.application.job_queue
+        job_queue.run_repeating(
+            send_signal_job, interval=interval_num, first=5, name=job_name,
+            data = {
+                'chat_id': chat_id,
+                'from_city': context.user_data['from_city'],
+                'to_city': context.user_data['to_city'],
+                'date': date,
+                'class_name': class_names,
+                'comment': comment,
+                'flight_number': context.user_data.get('flight_number')
+            }
+        )
+
     return ConversationHandler.END
 
 chat_queues = defaultdict(deque)
@@ -639,14 +644,18 @@ async def restart_active_signals(application):
                 if cls not in entry['class_name']:
                     entry['class_name'].append(cls)
 
-    results = list(grouped.values())
-
+    results = list(grouped.values())  
+    
     for data in results:
         job_name = f"signal_{data['chat_id']}_{'_'.join(data['class_name'])}_{data['date']}"
         current_jobs = application.job_queue.get_jobs_by_name(job_name)
         if current_jobs:
             continue
-        start_signal_job(data=data)
+        interval_num = random.randint(90, 130)
+        job_queue.run_repeating(
+            send_signal_job, interval=interval_num, first=5, name=job_name,
+            data = data
+        )
 
 
 async def cancel(update: Update, context: CallbackContext):
