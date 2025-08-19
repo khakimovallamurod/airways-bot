@@ -380,7 +380,6 @@ async def handle_signal_job(bot, data):
     signal_comment = data.get("comment")
     class_names = data.get("class_name", [])
     flight_number = data.get("flight_number")
-
     parser = get_airwasydata.FlightParser(
         from_city=stationFromCode,
         to_city=stationToCode,
@@ -416,7 +415,8 @@ async def handle_signal_job(bot, data):
                 f"💺 Tariff: {data['tariff_type']} ({data['tariff_class']})\n"
                 f"📦 Available Seats: {data.get('available_seats', 'Unknown')}\n"
                 f"💰 Price: {data['price']} {data['currency']}\n"
-                f"🔁 Refund Fee: {int(data['refund_fee'])/10000} {data['refund_currency']}\n\n"
+                f"🔁 Refund Fee: {int(data['refund_fee'])/10000} {data['refund_currency']}\n"
+                f"💬 Comments: {signal_comment}\n\n"
                 f"📋 Segments:\n{segments_text}"
             )
         else:
@@ -430,7 +430,8 @@ async def handle_signal_job(bot, data):
                 f"💺 Tariff: {data['tariff_type']} ({data['tariff_class']})\n"
                 f"📦 Available Seats: {data.get('available_seats', 'Unknown')}\n"
                 f"💰 Price: {data['price']} {data['currency']}\n"
-                f"🔁 Air ticket refund: {int(data['refund_fee'])/10000} {data['refund_currency']}"
+                f"🔁 Air ticket refund: {int(data['refund_fee'])/10000} {data['refund_currency']}\n"
+                f"💬 Comments: {signal_comment}"
             )
 
         reply_markup = keyboards.signal_keyboard(data['tariff_class'], date=date, route_key=route_key)
