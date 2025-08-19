@@ -27,6 +27,7 @@ USER_IDS = ['6889331565', '608913545', '1383186462']
 FROM_CITY, TO_CITY, DATE, FL_NUM, SELECT, ADD_COMMENT = range(6)
 ACCOUNT_NAME, ID_START = range(2)
 REMOVE_ID = range(1)
+EDIT_COMMENT = range(1)
 
 async def start(update: Update, context: CallbackContext):
     user = update.message.chat
@@ -532,7 +533,70 @@ async def stop_signal(update: Update, context: CallbackContext):
             f"🚫 All signals for tariff '{class_name_to_remove}' stopped.\n\n"
             f"{results_signal_text}"
         )
-
+async def stop_signal_by_classes(update: Update, context: CallbackContext):
+    """🚫 Signalni to‘xtatish (biror klass uchun)"""
+    query = update.callback_query
+    await query.answer()
+    _, route_key, class_names, date = query.data.split(':')
+    chat_id = query.message.chat.id
+    obj = db.AirwayDB()
+    job_name = f"signal_{chat_id}_{class_names}_{date}"
+    target_job = scheduler.get_job(job_name)
+    class_names_list = class_names.split('_')
+    if target_job:
+        doc_id = f"{chat_id}_{class_names_list[0]}_{date}_{route_key}"
+        signal_data = obj.get_signal_data(doc_id=doc_id)
+        for class_name in class_names_list:
+            doc_id_one = f"{chat_id}_{class_name}_{date}_{route_key}"
+            obj.update_signal(doc_id=doc_id_one)
+        
+        from_city, to_city = signal_data['route']
+        comment = signal_data.get('comment', '')
+        flight_number = signal_data.get('flight_number')
+        results_signal_text = (
+            f"✈️ {from_city} → {to_city}\n"
+            f"🔢 Flight Number: {flight_number}\n"
+            f"📅 Date: {date}\n"
+            f"💺 Tariff: {', '.join(class_names_list)}\n"
+            f"💬 Comment: {comment}"
+        )
+        await query.message.reply_text(
+            f"🚫 All signals for tariff '{', '.join(class_names_list)}' stopped.\n\n"
+            f"{results_signal_text}"
+        )
+        scheduler.remove_job(job_name)
+    else:
+        await query.message.reply_text("⚠️ No active tracking found for this class.")
+        return
+async def stop_all_byid(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+    airwayobj = db.AirwayDB()
+    jobs = scheduler.get_jobs()
+    total = 0
+    for job in jobs:
+        parts = job.id.split('_')  
+        job_chat_id = parts[1]
+        if job_chat_id == str(chat_id):
+            job_classes = parts[2:-1]    
+            scheduler.remove_job(job_id=job.id)
+            total += len(job_classes)
+    actives_data = airwayobj.get_actives(chat_id=chat_id)
+    for act_data in actives_data:
+        date = act_data['date']
+        class_name = act_data['class_name']
+        from_code = act_data['stationFromCode']
+        to_code = act_data['stationToCode']
+        route_key = f"{from_code}_{to_code}" 
+        doc_id = f"{chat_id}_{class_name}_{date}_{route_key}"
+        airwayobj.update_signal(doc_id=doc_id)
+    if total != 0:
+        await update.message.reply_text(
+            f"✅ {total} active signal(s) have been successfully canceled."
+        )
+    else:
+        await update.message.reply_text(
+            "ℹ️ You don’t have any active signals at the moment."
+        )
 
 async def view_actives(update: Update, context: CallbackContext):
     """📋 Faol aviaparvoz signallarini ko‘rsatish (multi-class formatda)"""
@@ -568,6 +632,82 @@ async def view_actives(update: Update, context: CallbackContext):
             class_name=class_name, 
             date=date, 
             route_key=route_key
+        )
+
+        await update.message.reply_text(
+            text=f"📌 Active signal:\n{results_signal_text}",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        await asyncio.sleep(1)
+
+async def view_actives_by_classes(update: Update, context: CallbackContext):
+    chat_id = update.message.chat.id
+    airwayobj = db.AirwayDB()
+    if not airwayobj.check_admin(chat_id):
+        await update.message.reply_text("❌ You are not authorized to view active signals.")
+        return
+
+    actives_data = airwayobj.get_actives(chat_id=chat_id)
+    if actives_data == []:
+        await update.message.reply_text("❌ No active signals found.")
+        return
+    grouped = defaultdict(lambda: {
+        'chat_id': None,
+        'from_city': None,
+        'to_city': None,
+        'date': None,
+        'class_name': [],
+        'comment': None,
+        'flight_number': None,
+    })
+
+    for item in actives_data:
+        key = (
+            item['chat_id'],
+            item['stationFromCode'],
+            item['stationToCode'],
+            item['date'],
+            item.get('comment', ''),
+            item.get('flight_number', None),
+        )
+        entry = grouped[key]
+        if entry['chat_id'] is None:
+            entry['chat_id'] = item['chat_id']
+            entry['from_city'] = f"{item['route'][0]}:{item['stationFromCode']}"
+            entry['to_city'] = f"{item['route'][1]}:{item['stationToCode']}"
+            entry['date'] = item['date']
+            entry['comment'] = item.get('comment', '')
+            entry['flight_number'] = item.get('flight_number', None)
+        cls = item.get('class_name')
+        if cls:
+            if isinstance(cls, list):
+                for c in cls:
+                    if c not in entry['class_name']:
+                        entry['class_name'].append(c)
+            else:
+                if cls not in entry['class_name']:
+                    entry['class_name'].append(cls)
+
+    results = list(grouped.values())  
+    for act_data in results:
+        from_city, from_cityCode = act_data['from_city'].split(':')
+        to_city, to_cityCode = act_data['to_city'].split(':')
+        class_name = act_data['class_name']
+        date = act_data['date']
+        comment = act_data.get('comment', '')
+        flight_number = act_data['flight_number']
+        results_signal_text = (
+            f"✈️ {from_city} → {to_city}\n"
+            f"🔢 Flight Number: {flight_number}\n"
+            f"📅 Date: {date}\n"
+            f"💺 Tariff: {', '.join(class_name)}\n"
+            f"💬 Comment: {comment}"
+        )
+        reply_markup = keyboards.signal_keyboard_by_classes(
+            class_name=class_name, 
+            date=date, 
+            route_key=f'{from_cityCode}_{to_cityCode}'
         )
 
         await update.message.reply_text(
@@ -647,4 +787,79 @@ async def restart_active_signals(application):
 
 async def cancel(update: Update, context: CallbackContext):
     await update.message.reply_text('❌ Jarayon bekor qilindi.')
+    return ConversationHandler.END
+
+async def ask_new_comment(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data["edit_message_id"] = query.message.message_id
+    context.user_data["edit_keyboard"] = query.message.reply_markup
+    context.user_data['query_data'] = query.data
+    prompt_message = await query.message.reply_text("✍️ Enter a new comment:")
+    context.user_data['prompt_message_id'] = prompt_message.message_id
+    context.user_data['prompt_chat_id'] = prompt_message.chat.id
+
+    return EDIT_COMMENT
+
+async def save_new_comment(update: Update, context: CallbackContext):
+    if "edit_message_id" not in context.user_data:
+        return
+
+    new_comment = update.message.text
+    chat_id = update.message.chat_id
+    message_id = context.user_data["edit_message_id"]
+
+    message = await context.bot.forward_message(
+        chat_id=chat_id,
+        from_chat_id=chat_id,
+        message_id=message_id
+    )
+    old_text = message.text
+    await message.delete()
+
+    idx = 0
+    lines = old_text.split("\n")
+    for index, line in enumerate(lines):
+        if line.startswith("💬 Comment:"):
+            idx = index
+            lines[index] = f"💬 Comment: {new_comment}"
+    new_text = "\n".join(lines[:idx+1])
+
+    query_data = context.user_data['query_data']
+    _, route_key, class_names_list, date = query_data.split(':')
+    obj = db.AirwayDB()
+    success = False
+    for class_name in class_names_list.split('_'):
+        doc_id = f"{chat_id}_{class_name}_{date}_{route_key}"
+        update_com = obj.update_comment(doc_id=doc_id, new_comment=new_comment)
+        if update_com:
+            success = True
+    old_keyboard = context.user_data.get("edit_keyboard")
+    if success: 
+        await context.bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=new_text,
+            reply_markup=old_keyboard
+        )
+    else:
+        await context.bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=old_text,
+            reply_markup=old_keyboard
+        )
+
+    await context.bot.delete_message(
+        chat_id=context.user_data['prompt_chat_id'],
+        message_id=context.user_data['prompt_message_id']
+    )
+    await update.message.delete()
+    del context.user_data['prompt_message_id']
+    del context.user_data['prompt_chat_id']
+    del context.user_data["edit_message_id"]
+    del context.user_data["edit_keyboard"]
+    del context.user_data["query_data"]
+
     return ConversationHandler.END

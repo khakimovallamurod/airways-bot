@@ -49,7 +49,6 @@ def main():
             handlears.ID_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.insert_admin)]
         },
         fallbacks=[CommandHandler("cancel", handlears.cancel)],
-        per_message=False,
         allow_reentry=True
     )
     remove_handler = ConversationHandler(
@@ -58,15 +57,27 @@ def main():
             handlears.REMOVE_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.remove_admin)],
         },
         fallbacks=[CommandHandler("cancel", handlears.cancel)],
-        per_message=False,
         allow_reentry=True
     )
+    edit_comment_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(handlears.ask_new_comment, pattern='edit_comment')],
+        states={
+            handlears.EDIT_COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handlears.save_new_comment)]
+        },
+        fallbacks=[CommandHandler("cancel", handlears.cancel)],
+        allow_reentry=True
+    )
+
+    dp.add_handler(edit_comment_conv)
     dp.add_handler(conv_handler)
     dp.add_handler(admin_handler)
     dp.add_handler(remove_handler)
     dp.add_handler(CommandHandler('viewadmins', handlears.view_all_admin))
     dp.add_handler(CommandHandler('viewactives', handlears.view_actives))
+    dp.add_handler(CommandHandler('clsviewactives', handlears.view_actives_by_classes))
+    dp.add_handler(CommandHandler('stopallactives', handlears.stop_all_byid))
     dp.add_handler(CallbackQueryHandler(handlears.stop_signal, pattern="stop_signal"))
+    dp.add_handler(CallbackQueryHandler(handlears.stop_signal_by_classes, pattern="byclasses_stopsignal"))
 
 
     dp.run_polling(allowed_updates=Update.ALL_TYPES, timeout=30)

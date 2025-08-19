@@ -99,6 +99,15 @@ class AirwayDB:
             return True
         else :
             return False
+    
+    def update_comment(self, doc_id, new_comment):
+        doc_id = int(self.generate_doc_id(doc_id))
+        if self.table.get(doc_id=doc_id) != None:
+            res = self.table.update({'comment': new_comment}, doc_ids=[doc_id])
+            return True
+        else :
+            return False
+        
     def check_data(self, doc_id):
         if self.table.get(doc_id=doc_id) == None:
             return True

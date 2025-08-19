@@ -41,7 +41,18 @@ def get_viloyats():
 
 def signal_keyboard(class_name, date, route_key):
     """🚆 Har bir signal uchun alohida 'To‘xtatish' tugmasi (InlineKeyboardMarkup)"""
-    keyboard = [[InlineKeyboardButton(f"⛔ Econom {class_name} uchun to‘xtatish", callback_data=f"stop_signal:{route_key}:{class_name}:{date}")]]
+    keyboard = [
+        [InlineKeyboardButton(f"⛔ Econom {class_name} uchun to‘xtatish", callback_data=f"stop_signal:{route_key}:{class_name}:{date}")],
+        [InlineKeyboardButton("✏️ Commentni o'zgartirish", callback_data=f"edit_comment:{route_key}:{class_name}:{date}")]
+        ]
+    return InlineKeyboardMarkup(keyboard)
+
+def signal_keyboard_by_classes(class_name, date, route_key):
+    """🚆 Har bir signal uchun alohida 'To‘xtatish' tugmasi (InlineKeyboardMarkup)"""
+    keyboard = [
+        [InlineKeyboardButton(f"⛔ Econom {', '.join(class_name)} uchun to‘xtatish", callback_data=f"byclasses_stopsignal:{route_key}:{'_'.join(class_name)}:{date}")],
+        [InlineKeyboardButton("✏️ Commentni o'zgartirish", callback_data=f"edit_comment:{route_key}:{'_'.join(class_name)}:{date}")]
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 def select_class_button(selected_classes, class_names):
